@@ -18,9 +18,11 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Sql DBus)
 add_executable(clipboard-linux
     include/ClipboardWatcher.h
     include/Daemon.h
+    include/HistoryModel.h
     include/HistoryStore.h
     src/ClipboardWatcher.cpp
     src/Daemon.cpp
+    src/HistoryModel.cpp
     src/HistoryStore.cpp
     src/main.cpp
 )
