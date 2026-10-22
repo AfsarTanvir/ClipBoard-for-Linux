@@ -13,12 +13,14 @@ set(CMAKE_AUTOMOC ON)
 
 option(BUILD_TESTING "Build the unit tests" ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Sql)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Sql DBus)
 
 add_executable(clipboard-linux
     include/ClipboardWatcher.h
+    include/Daemon.h
     include/HistoryStore.h
     src/ClipboardWatcher.cpp
+    src/Daemon.cpp
     src/HistoryStore.cpp
     src/main.cpp
 )
@@ -30,7 +32,7 @@ target_compile_definitions(clipboard-linux PRIVATE
 
 target_compile_options(clipboard-linux PRIVATE -Wall -Wextra -Wpedantic)
 
-target_link_libraries(clipboard-linux PRIVATE Qt6::Widgets Qt6::Sql)
+target_link_libraries(clipboard-linux PRIVATE Qt6::Widgets Qt6::Sql Qt6::DBus)
 
 if(BUILD_TESTING)
     enable_testing()
