@@ -1,4 +1,8 @@
+#include "ClipboardWatcher.h"
+#include "HistoryStore.h"
+
 #include <QApplication>
+#include <QStandardPaths>
 
 int main(int argc, char *argv[])
 {
@@ -13,6 +17,16 @@ int main(int argc, char *argv[])
 
     // The app lives in the background; hiding the popup must not quit it.
     QApplication::setQuitOnLastWindowClosed(false);
+
+    // ~/.local/share/clipboard-linux/history.db
+    const QString dbPath = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+        + QStringLiteral("/clipboard-linux/history.db");
+    HistoryStore store(dbPath);
+    if (!store.open())
+        return 1;
+
+    ClipboardWatcher watcher;
+    QObject::connect(&watcher, &ClipboardWatcher::textCopied, &store, &HistoryStore::addText);
 
     return QApplication::exec();
 }

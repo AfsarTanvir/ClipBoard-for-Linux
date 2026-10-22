@@ -16,7 +16,9 @@ option(BUILD_TESTING "Build the unit tests" ON)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Sql)
 
 add_executable(clipboard-linux
+    include/ClipboardWatcher.h
     include/HistoryStore.h
+    src/ClipboardWatcher.cpp
     src/HistoryStore.cpp
     src/main.cpp
 )
