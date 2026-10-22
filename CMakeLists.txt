@@ -23,6 +23,7 @@ add_executable(clipboard-linux
     include/HistoryModel.h
     include/HistoryStore.h
     include/ItemDelegate.h
+    include/Paster.h
     include/PopupWindow.h
     include/Theme.h
     include/X11Activation.h
@@ -31,6 +32,7 @@ add_executable(clipboard-linux
     src/HistoryModel.cpp
     src/HistoryStore.cpp
     src/ItemDelegate.cpp
+    src/Paster.cpp
     src/PopupWindow.cpp
     src/X11Activation.cpp
     src/main.cpp

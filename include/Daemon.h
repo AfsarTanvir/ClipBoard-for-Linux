@@ -3,6 +3,7 @@
 #include "ClipboardWatcher.h"
 #include "HistoryModel.h"
 #include "HistoryStore.h"
+#include "Paster.h"
 #include "PopupWindow.h"
 
 #include <QObject>
@@ -51,4 +52,6 @@ private:
     ClipboardWatcher m_watcher;
     HistoryModel m_model;
     PopupWindow m_popup;
+    Paster m_paster;
+    bool m_autoPaste = true;
 };

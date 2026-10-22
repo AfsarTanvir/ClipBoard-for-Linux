@@ -11,6 +11,12 @@ Daemon::Daemon(const QString &dbPath, QObject *parent)
     , m_model(&m_store)
     , m_popup(&m_model)
 {
+    // Settings live in ~/.config/clipboard-linux/clipboard-linux.conf
+    QSettings settings;
+    m_autoPaste = settings.value(QStringLiteral("paste/auto"), true).toBool();
+    m_paster.setKeys(Paster::keysFromString(
+        settings.value(QStringLiteral("paste/keys"), QStringLiteral("ctrl+v")).toString()));
+
     connect(&m_watcher, &ClipboardWatcher::textCopied, &m_store, &HistoryStore::addText);
 
     connect(&m_popup, &PopupWindow::pasteRequested, this, &Daemon::pasteItem);
@@ -72,8 +78,12 @@ void Daemon::Quit()
 
 void Daemon::pasteItem(qint64 id)
 {
-    if (const auto item = findItem(id))
-        m_watcher.setText(item->text);
+    const auto item = findItem(id);
+    if (!item)
+        return;
+    m_watcher.setText(item->text);
+    if (m_autoPaste)
+        m_paster.paste();
 }
 
 void Daemon::togglePin(qint64 id)
