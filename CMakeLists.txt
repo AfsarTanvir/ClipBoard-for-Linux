@@ -20,10 +20,15 @@ add_executable(clipboard-linux
     include/Daemon.h
     include/HistoryModel.h
     include/HistoryStore.h
+    include/ItemDelegate.h
+    include/PopupWindow.h
+    include/Theme.h
     src/ClipboardWatcher.cpp
     src/Daemon.cpp
     src/HistoryModel.cpp
     src/HistoryStore.cpp
+    src/ItemDelegate.cpp
+    src/PopupWindow.cpp
     src/main.cpp
 )
 

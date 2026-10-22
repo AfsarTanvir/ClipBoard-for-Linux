@@ -8,8 +8,15 @@
 Daemon::Daemon(const QString &dbPath, QObject *parent)
     : QObject(parent)
     , m_store(dbPath, QSettings().value(QStringLiteral("history/maxItems"), 25).toInt())
+    , m_model(&m_store)
+    , m_popup(&m_model)
 {
     connect(&m_watcher, &ClipboardWatcher::textCopied, &m_store, &HistoryStore::addText);
+
+    connect(&m_popup, &PopupWindow::pasteRequested, this, &Daemon::pasteItem);
+    connect(&m_popup, &PopupWindow::pinToggleRequested, this, &Daemon::togglePin);
+    connect(&m_popup, &PopupWindow::removeRequested, &m_store, &HistoryStore::remove);
+    connect(&m_popup, &PopupWindow::clearAllRequested, this, &Daemon::ClearAll);
 }
 
 bool Daemon::start()
@@ -28,17 +35,28 @@ bool Daemon::start()
 
     if (!m_store.open())
         return false;
+    m_model.reload();
 
     return bus.registerObject(QString::fromLatin1(ObjectPath), this,
                               QDBusConnection::ExportScriptableSlots);
 }
 
+void Daemon::Toggle()
+{
+    m_popup.toggle();
+}
+
+void Daemon::Show()
+{
+    m_popup.showPopup();
+}
+
 bool Daemon::PasteIndex(int number)
 {
-    const QList<ClipItem> items = m_store.items();
-    if (number < 1 || number > items.size())
+    const ClipItem *item = m_model.itemAt(number - 1);
+    if (!item)
         return false;
-    pasteItem(items[number - 1].id);
+    pasteItem(item->id);
     return true;
 }
 
@@ -54,10 +72,22 @@ void Daemon::Quit()
 
 void Daemon::pasteItem(qint64 id)
 {
-    for (const ClipItem &item : m_store.items()) {
-        if (item.id == id) {
-            m_watcher.setText(item.text);
-            return;
-        }
+    if (const auto item = findItem(id))
+        m_watcher.setText(item->text);
+}
+
+void Daemon::togglePin(qint64 id)
+{
+    if (const auto item = findItem(id))
+        m_store.setPinned(id, !item->pinned);
+}
+
+std::optional<ClipItem> Daemon::findItem(qint64 id) const
+{
+    for (int row = 0; row < m_model.rowCount(); ++row) {
+        const ClipItem *item = m_model.itemAt(row);
+        if (item->id == id)
+            return *item;
     }
+    return std::nullopt;
 }
