@@ -60,3 +60,6 @@ if(BUILD_TESTING)
     target_link_libraries(test_history_store PRIVATE Qt6::Sql Qt6::Test)
     add_test(NAME test_history_store COMMAND test_history_store)
 endif()
+
+include(GNUInstallDirs)
+install(TARGETS clipboard-linux RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

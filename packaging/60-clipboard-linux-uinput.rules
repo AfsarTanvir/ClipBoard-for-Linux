@@ -1,0 +1,7 @@
+# Let the logged-in desktop user create a virtual keyboard through /dev/uinput.
+# clipboard-linux uses it to press Ctrl+V after you pick an item, because
+# Wayland does not let apps send keystrokes to other windows.
+#
+# "uaccess" grants access only to the user sitting at the active session
+# (applied by systemd-logind), not to everyone.
+KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess", OPTIONS+="static_node=uinput"
