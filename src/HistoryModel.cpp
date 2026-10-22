@@ -4,8 +4,8 @@ HistoryModel::HistoryModel(HistoryStore *store, QObject *parent)
     : QAbstractListModel(parent)
     , m_store(store)
 {
+    // The store may not be open yet; the owner calls reload() once it is.
     connect(m_store, &HistoryStore::changed, this, &HistoryModel::reload);
-    reload();
 }
 
 int HistoryModel::rowCount(const QModelIndex &parent) const
