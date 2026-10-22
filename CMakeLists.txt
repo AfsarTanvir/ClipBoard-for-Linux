@@ -14,6 +14,8 @@ set(CMAKE_AUTOMOC ON)
 option(BUILD_TESTING "Build the unit tests" ON)
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Sql DBus)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(XCB REQUIRED IMPORTED_TARGET xcb)
 
 add_executable(clipboard-linux
     include/ClipboardWatcher.h
@@ -23,12 +25,14 @@ add_executable(clipboard-linux
     include/ItemDelegate.h
     include/PopupWindow.h
     include/Theme.h
+    include/X11Activation.h
     src/ClipboardWatcher.cpp
     src/Daemon.cpp
     src/HistoryModel.cpp
     src/HistoryStore.cpp
     src/ItemDelegate.cpp
     src/PopupWindow.cpp
+    src/X11Activation.cpp
     src/main.cpp
 )
 
@@ -39,7 +43,7 @@ target_compile_definitions(clipboard-linux PRIVATE
 
 target_compile_options(clipboard-linux PRIVATE -Wall -Wextra -Wpedantic)
 
-target_link_libraries(clipboard-linux PRIVATE Qt6::Widgets Qt6::Sql Qt6::DBus)
+target_link_libraries(clipboard-linux PRIVATE Qt6::Widgets Qt6::Sql Qt6::DBus PkgConfig::XCB)
 
 if(BUILD_TESTING)
     enable_testing()

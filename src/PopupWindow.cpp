@@ -3,6 +3,7 @@
 #include "HistoryModel.h"
 #include "ItemDelegate.h"
 #include "Theme.h"
+#include "X11Activation.h"
 
 #include <QGuiApplication>
 #include <QHBoxLayout>
@@ -14,6 +15,7 @@
 #include <QPushButton>
 #include <QScreen>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 
 namespace {
@@ -128,7 +130,15 @@ void PopupWindow::showPopup()
     show();
     raise();
     activateWindow();
+    X11Activation::activate(this);
     m_list->setFocus();
+
+    // The window manager may not have finished mapping the window when the
+    // first request arrives; ask once more if we still are not focused.
+    QTimer::singleShot(150, this, [this] {
+        if (isVisible() && !isActiveWindow())
+            X11Activation::activate(this);
+    });
 }
 
 void PopupWindow::toggle()
