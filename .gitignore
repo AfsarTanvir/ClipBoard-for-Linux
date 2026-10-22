@@ -1,0 +1,15 @@
+# Build output
+build/
+build-*/
+cmake-build-*/
+
+# Local project notes (setup guides, commit notes, plans) - kept out of git
+doc/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*~
+compile_commands.json
+.cache/
