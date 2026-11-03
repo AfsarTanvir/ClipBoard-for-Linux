@@ -13,7 +13,7 @@ set(CMAKE_AUTOMOC ON)
 
 option(BUILD_TESTING "Build the unit tests" ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Sql DBus)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets Sql DBus)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(XCB REQUIRED IMPORTED_TARGET xcb)
 
