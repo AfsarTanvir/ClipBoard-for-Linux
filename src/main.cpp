@@ -12,6 +12,9 @@ namespace {
 
 void setAppInfo()
 {
+    // QSettings uses organization/application for its path:
+    // ~/.config/clipboard-linux/clipboard-linux.conf
+    QCoreApplication::setOrganizationName(QStringLiteral("clipboard-linux"));
     QCoreApplication::setApplicationName(QStringLiteral("clipboard-linux"));
     QCoreApplication::setApplicationVersion(QStringLiteral(APP_VERSION));
 }
