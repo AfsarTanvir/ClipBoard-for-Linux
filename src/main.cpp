@@ -4,6 +4,10 @@
 #include <QCommandLineParser>
 #include <QDBusInterface>
 #include <QDBusReply>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QSettings>
 #include <QStandardPaths>
 
 #include <cstdio>
@@ -12,8 +16,42 @@ namespace {
 
 void setAppInfo()
 {
+    // QSettings builds its path from both names. Without an organization
+    // name Qt uses "Unknown Organization", so set it to get
+    // ~/.config/clipboard-linux/clipboard-linux.conf.
+    QCoreApplication::setOrganizationName(QStringLiteral("clipboard-linux"));
     QCoreApplication::setApplicationName(QStringLiteral("clipboard-linux"));
     QCoreApplication::setApplicationVersion(QStringLiteral(APP_VERSION));
+}
+
+// Versions before the organization name was set read their settings from
+// ~/.config/Unknown Organization/clipboard-linux.conf. Move that file to the
+// new location, so nobody loses settings (and history, through a smaller
+// maxItems) when upgrading. Moving, not copying, makes this happen only once.
+void migrateOldSettings()
+{
+    const QString newPath = QSettings().fileName();
+    const QString oldDir = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
+        + QStringLiteral("/Unknown Organization");
+    const QString oldPath = oldDir + QStringLiteral("/clipboard-linux.conf");
+    if (!QFile::exists(oldPath))
+        return;
+    if (QFile::exists(newPath)) {
+        // Keep the new file; set the old one aside so this happens only once.
+        QFile::remove(oldPath + QStringLiteral(".old"));
+        QFile::rename(oldPath, oldPath + QStringLiteral(".old"));
+        qWarning("clipboard-linux: ignored old settings %s (renamed to .old), using %s",
+                 qPrintable(oldPath), qPrintable(newPath));
+        return;
+    }
+    QDir().mkpath(QFileInfo(newPath).absolutePath());
+    if (!QFile::rename(oldPath, newPath)) {
+        qWarning("clipboard-linux: cannot move old settings from %s to %s", qPrintable(oldPath),
+                 qPrintable(newPath));
+        return;
+    }
+    QDir().rmdir(oldDir); // only succeeds if nothing else is in it
+    qInfo("clipboard-linux: moved settings from %s to %s", qPrintable(oldPath), qPrintable(newPath));
 }
 
 // Sends one command to the running daemon over D-Bus.
@@ -33,6 +71,20 @@ int runClient()
     parser.addOptions({pasteOption, clearAllOption, quitOption});
     parser.process(*QCoreApplication::instance());
 
+    // Check the usage before contacting the daemon, so a typo is reported
+    // as such even when the daemon is not running.
+    int number = 0;
+    if (parser.isSet(pasteOption)) {
+        bool ok = false;
+        number = parser.value(pasteOption).toInt(&ok);
+        if (!ok) {
+            std::fprintf(stderr, "--paste needs a number.\n");
+            return 2;
+        }
+    } else if (!parser.isSet(clearAllOption) && !parser.isSet(quitOption)) {
+        parser.showHelp(2);
+    }
+
     QDBusInterface daemon(QString::fromLatin1(Daemon::ServiceName),
                           QString::fromLatin1(Daemon::ObjectPath),
                           QString::fromLatin1(Daemon::InterfaceName),
@@ -44,12 +96,6 @@ int runClient()
 
     QDBusMessage reply;
     if (parser.isSet(pasteOption)) {
-        bool ok = false;
-        const int number = parser.value(pasteOption).toInt(&ok);
-        if (!ok) {
-            std::fprintf(stderr, "--paste needs a number.\n");
-            return 2;
-        }
         const QDBusReply<bool> pasted = daemon.call(QStringLiteral("PasteIndex"), number);
         if (!pasted.isValid()) {
             std::fprintf(stderr, "%s\n", qPrintable(pasted.error().message()));
@@ -62,10 +108,8 @@ int runClient()
         return 0;
     } else if (parser.isSet(clearAllOption)) {
         reply = daemon.call(QStringLiteral("ClearAll"));
-    } else if (parser.isSet(quitOption)) {
-        reply = daemon.call(QStringLiteral("Quit"));
     } else {
-        parser.showHelp(2);
+        reply = daemon.call(QStringLiteral("Quit"));
     }
 
     if (reply.type() == QDBusMessage::ErrorMessage) {
@@ -94,6 +138,7 @@ int main(int argc, char *argv[])
 
     QApplication app(argc, argv);
     setAppInfo();
+    migrateOldSettings();
 
     // The app lives in the background; hiding the popup must not quit it.
     QApplication::setQuitOnLastWindowClosed(false);
