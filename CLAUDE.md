@@ -88,8 +88,9 @@ Every new `.h`/`.cpp` must be added to `add_executable(clipboard-linux …)` in
   mode then calls `migrateOldSettings()`, which moves
   `~/.config/Unknown Organization/clipboard-linux.conf` to the new path (and removes the old
   folder if empty) when the new file doesn't exist yet. If both exist, the old file was the one in effect, so
-  its values are written over the new file's (keys only in the new file stay) and the old file
-  is renamed to `clipboard-linux.conf.old`.
+  the new file is backed up to `.bak`, the old values are written over it (keys only in the new
+  file stay; QSettings drops comments) and the old file is renamed to `.old`, or deleted if it
+  can't be, so it is never merged twice.
 
 ### Data flow
 
@@ -259,10 +260,10 @@ Wayland blocks three things a clipboard manager needs:
    `added <Super>m`) in `~/.local/state/clipboard-linux/notification-shortcut-changes`
    (`XDG_STATE_HOME`, kept apart from the settings so resetting them doesn't lose it); the file
    is written even when empty. `uninstall` undoes only the recorded changes, so the user's own
-   bindings stay. Upgrading over an install that predates the record, when the list is exactly
-   Super+M (what that version left on GNOME's default), counts as "removed Super+V" (whether it
-   added Super+M is unknown, so Super+M is left alone). If the record can't be read or written
-   the script warns and carries on. With no record at
+   bindings stay. Upgrading over an install that predates the record counts as "removed
+   Super+V", as that version's uninstall always restored it (whether it added Super+M is
+   unknown, so Super+M is left alone). If the record can't be read, install leaves it untouched
+   and uninstall treats it as missing; if it can't be written, the script warns and carries on. With no record at
    all, uninstall puts Super+V back only if our shortcuts were still installed (so running it
    twice, or without installing, changes nothing). GNOME's default list is Super+V and Super+M, so on a
    stock setup install drops Super+V and uninstall puts it back.
@@ -298,7 +299,8 @@ of focusing it.
   their own line for classes and functions.
 - **Comments** explain *why* (platform quirks, ordering constraints), not what the code does.
   Each class header starts with a short comment on its purpose.
-- **Errors:** log with `qWarning("Class: …")` and degrade gracefully (e.g. no uinput → copy
+- **Errors:** log with `qWarning("Class: …")` (free functions use their area, e.g.
+  `"Settings: "` in `main.cpp`) and degrade gracefully (e.g. no uinput → copy
   only); don't throw.
 - **Ownership:** `Daemon` holds its components by value; widgets are parented to Qt objects.
 - **Commits:** Conventional Commits with a scope: `feat(store): …`, `fix(ui): …`,

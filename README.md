@@ -37,7 +37,9 @@ Uninstalling gives Super + V back to GNOME's notification list and removes Super
 the installer added it.
 
 Settings that earlier builds read from `~/.config/Unknown Organization/clipboard-linux.conf` are
-moved to the new location the first time the app starts.
+moved to the new location the first time the app starts. If you already have a file at the new
+location, the old values (the ones that were in effect) are written into it, your previous
+version is kept as `clipboard-linux.conf.bak`, and the old file is renamed to `.old`.
 
 ## Usage
 
