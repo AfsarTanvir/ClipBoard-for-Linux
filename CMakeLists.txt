@@ -64,3 +64,8 @@ endif()
 
 include(GNUInstallDirs)
 install(TARGETS clipboard-linux RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+# The app runs this on first start to add the GNOME shortcuts.
+install(PROGRAMS packaging/gnome-shortcuts.py
+    DESTINATION ${CMAKE_INSTALL_BINDIR}
+    RENAME clipboard-linux-shortcuts)
+

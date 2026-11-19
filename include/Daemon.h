@@ -47,6 +47,7 @@ private:
     void pasteItem(qint64 id);
     void togglePin(qint64 id);
     std::optional<ClipItem> findItem(qint64 id) const;
+    void setUpShortcutsOnce();
 
     HistoryStore m_store;
     ClipboardWatcher m_watcher;

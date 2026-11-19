@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Add or remove the GNOME keyboard shortcuts for clipboard-linux.
 
-    gnome-shortcuts.py install     Super+V and Ctrl+Alt+1..9
-    gnome-shortcuts.py uninstall   remove them and undo what install changed on
-                                   GNOME's notification-list shortcut
+    clipboard-linux-shortcuts install     Super+V and Ctrl+Alt+1..9
+    clipboard-linux-shortcuts uninstall   remove them and undo what install changed on
+                                          GNOME's notification-list shortcut
+
+(Installed as clipboard-linux-shortcuts; packaging/gnome-shortcuts.py in the source.)
 
 GNOME on Wayland does not let apps grab global shortcuts, so we register
 "custom shortcuts" (the same as Settings > Keyboard > Custom Shortcuts)
@@ -31,7 +33,8 @@ def xdg_dir(variable, default):
 # Records what install changed on the notification list ("removed <Super>v",
 # "added <Super>m"), so uninstall undoes only that and keeps the user's own
 # bindings. Kept in the state folder, apart from the settings, so resetting
-# the settings does not lose it.
+# the settings does not lose it. The app also checks that this file exists to
+# know the shortcuts were set up, so it adds them only on its first run.
 STATE_DIR = os.path.join(xdg_dir("XDG_STATE_HOME", "~/.local/state"), "clipboard-linux")
 TRAY_MARKER = os.path.join(STATE_DIR, "notification-shortcut-changes")
 

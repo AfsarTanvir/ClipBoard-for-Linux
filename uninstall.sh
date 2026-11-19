@@ -29,7 +29,7 @@ fi
 python3 packaging/gnome-shortcuts.py uninstall
 
 rm -f "$CONFIG_HOME/autostart/clipboard-linux.desktop"
-rm -f "$PREFIX/bin/clipboard-linux"
+rm -f "$PREFIX/bin/clipboard-linux" "$PREFIX/bin/clipboard-linux-shortcuts"
 
 if [[ -f /etc/udev/rules.d/60-clipboard-linux-uinput.rules ]]; then
     echo "Removing the udev rule (needs sudo)"

@@ -3,6 +3,9 @@
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
+#include <QDir>
+#include <QFileInfo>
+#include <QProcess>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QStringList>
@@ -164,8 +167,12 @@ bool Daemon::start()
         return false;
     m_model.reload();
 
-    return bus.registerObject(QString::fromLatin1(ObjectPath), this,
-                              QDBusConnection::ExportScriptableSlots);
+    if (!bus.registerObject(QString::fromLatin1(ObjectPath), this,
+                            QDBusConnection::ExportScriptableSlots))
+        return false;
+
+    setUpShortcutsOnce();
+    return true;
 }
 
 void Daemon::Toggle()
@@ -223,4 +230,32 @@ std::optional<ClipItem> Daemon::findItem(qint64 id) const
             return *item;
     }
     return std::nullopt;
+}
+
+void Daemon::setUpShortcutsOnce()
+{
+    // A .deb install has no per-user setup step, so the app adds the GNOME
+    // shortcuts itself when they were never set up for this user. The
+    // shortcut script records every install in the state folder, so this
+    // runs once. Shortcuts deleted in GNOME Settings stay deleted;
+    // "clipboard-linux-shortcuts uninstall" removes the record, so they come
+    // back the next time the app starts.
+    if (!qEnvironmentVariable("XDG_CURRENT_DESKTOP").contains(QLatin1String("GNOME"), Qt::CaseInsensitive))
+        return;
+
+    // XDG variables only count when absolute, as the XDG spec requires.
+    QString stateHome = qEnvironmentVariable("XDG_STATE_HOME");
+    if (!QDir::isAbsolutePath(stateHome))
+        stateHome = QDir::homePath() + QStringLiteral("/.local/state");
+    if (QFileInfo::exists(stateHome + QStringLiteral("/clipboard-linux/notification-shortcut-changes")))
+        return;
+
+    // Installed next to the binary (missing in a development build).
+    const QString script = QCoreApplication::applicationDirPath()
+        + QStringLiteral("/clipboard-linux-shortcuts");
+    if (!QFileInfo(script).isExecutable())
+        return;
+
+    if (!QProcess::startDetached(script, {QStringLiteral("install")}))
+        qWarning("Daemon: could not run %s to add the GNOME shortcuts", qPrintable(script));
 }
