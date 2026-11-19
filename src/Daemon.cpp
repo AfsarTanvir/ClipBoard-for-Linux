@@ -73,8 +73,9 @@ QVariant setting(const QString &key, const QVariant &defaultValue)
     return result.found ? result.value : defaultValue;
 }
 
-// history/maxItems: numbers below 1 mean 1 (HistoryStore clamps). A typo must
-// never prune the history, so an unreadable value keeps it all.
+// history/maxItems: numbers below 1 mean 1 (HistoryStore clamps; the
+// documented minimum). A value that isn't a number must never prune the
+// history, so it keeps it all.
 int maxItemsSetting()
 {
     const Lookup result = lookup(QStringLiteral("history/maxItems"), [](const QVariant &value) {
