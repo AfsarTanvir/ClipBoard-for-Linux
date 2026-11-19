@@ -57,7 +57,8 @@ CMakeLists.txt            app target, test target, install rule
 include/                  all headers (one class per file)
 src/                      matching .cpp files + main.cpp
 tests/                    QtTest unit tests (HistoryStore only)
-packaging/                udev rule, autostart .desktop, GNOME shortcut installer (Python)
+packaging/                udev rule, autostart .desktop, GNOME shortcut installer (Python),
+                          stop-daemon.sh (quit a running daemon and wait, used by both scripts)
 install.sh / uninstall.sh per-user install into ~/.local, uses sudo for the udev rule
 doc/                      local notes, gitignored, never committed
 ```
@@ -233,12 +234,17 @@ from the new file therefore comes back from the old file until that file is dele
 depends on the organization and application names set in `setAppInfo()`; changing either moves
 users' settings. `uninstall.sh --purge` deletes this folder, the history folder, the state
 folder and the old `Unknown Organization` settings file (honouring `XDG_CONFIG_HOME`,
-`XDG_DATA_HOME`, `XDG_STATE_HOME`). `install.sh` and `uninstall.sh` also put the autostart entry
-under `XDG_CONFIG_HOME`.
+`XDG_DATA_HOME`, `XDG_STATE_HOME`; like Qt and the XDG spec, the scripts ignore relative
+values). `install.sh` and `uninstall.sh` also put the autostart entry under `XDG_CONFIG_HOME`.
+Both scripts first run `packaging/stop-daemon.sh`, which asks the daemon to quit over D-Bus
+(5 s timeout, or `--quit` when `gdbus` is missing) and waits up to 5 s for its name to go
+(falling back to `pgrep`). If it is still running, install stops with a message instead of
+starting a new daemon that would exit with "already running", and `uninstall.sh --purge`
+refuses to delete the history.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `history/maxItems` | `25` | unpinned items to keep (minimum 1) |
+| `history/maxItems` | `25` | unpinned items to keep; anything that isn't a whole number of 1 or more is reported (`Daemon: invalid history/maxItems`) and replaced by 25, so a typo can't prune the history |
 | `paste/auto` | `true` | `false` = only put the item on the clipboard |
 | `paste/keys` | `ctrl+v` | `ctrl+v`, `ctrl+shift+v` (terminals) or `shift+insert`; anything else falls back to `ctrl+v` |
 
