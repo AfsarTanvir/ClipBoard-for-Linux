@@ -22,16 +22,16 @@ OUR_PREFIX = BASE_PATH + "clipboard-linux-"
 SHELL_KEYS = "org.gnome.shell.keybindings"
 MESSAGE_TRAY = "toggle-message-tray"  # GNOME binds Super+V to the notification list
 
-# Records what install changed on the notification list ("removed <Super>v",
-# "added <Super>m"), so uninstall undoes only that and keeps the user's own
-# bindings. Kept in the state folder, apart from the settings, so resetting
-# the settings does not lose it.
 def xdg_dir(variable, default):
     """An XDG base folder; relative values are ignored, as the XDG spec requires."""
     value = os.environ.get(variable, "")
     return value if os.path.isabs(value) else os.path.expanduser(default)
 
 
+# Records what install changed on the notification list ("removed <Super>v",
+# "added <Super>m"), so uninstall undoes only that and keeps the user's own
+# bindings. Kept in the state folder, apart from the settings, so resetting
+# the settings does not lose it.
 STATE_DIR = os.path.join(xdg_dir("XDG_STATE_HOME", "~/.local/state"), "clipboard-linux")
 TRAY_MARKER = os.path.join(STATE_DIR, "notification-shortcut-changes")
 
