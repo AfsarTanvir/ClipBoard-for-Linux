@@ -12,7 +12,7 @@ DATA_HOME=$(xdg_dir "${XDG_DATA_HOME:-}" "$HOME/.local/share")
 STATE_HOME=$(xdg_dir "${XDG_STATE_HOME:-}" "$HOME/.local/state")
 
 still_running=false
-if ! bash packaging/stop-daemon.sh "$PREFIX/bin/clipboard-linux"; then
+if ! bash packaging/stop-daemon.sh; then
     still_running=true
 fi
 # Decide before removing anything, so a refused --purge leaves everything in place.

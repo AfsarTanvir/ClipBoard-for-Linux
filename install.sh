@@ -62,18 +62,41 @@ step "Starting clipboard-linux"
 # Stop an older version first: while it holds the D-Bus name the new one
 # refuses to start.
 stopped=0
-bash packaging/stop-daemon.sh "$BINARY" || stopped=$?
+bash packaging/stop-daemon.sh || stopped=$?
 if ((stopped == 1)); then
     echo "clipboard-linux is still running (it did not quit), so the new version was not"
     echo "started. Log out and in (or end the process), then run ./install.sh again."
     exit 1
 elif ((stopped == 2)); then
-    echo "The new version was installed but not started. Log in to the desktop, or run"
-    echo "'$BINARY' from a terminal inside your desktop session."
+    echo "The new version was installed but not started; it starts when you next log in."
+    echo "To start it now, run ./install.sh again from a terminal inside your desktop session."
     exit 1
 fi
 nohup "$BINARY" >/dev/null 2>&1 &
+pid=$!
 disown
+
+# Make sure this new process got the D-Bus name, not an older one that was
+# still starting up (e.g. from autostart right after login).
+owner=""
+for _ in $(seq 30); do
+    if owner=$(gdbus call --session --timeout 1 --dest org.freedesktop.DBus \
+            --object-path /org/freedesktop/DBus \
+            --method org.freedesktop.DBus.GetConnectionUnixProcessID \
+            io.github.afsartanvir.ClipboardLinux 2>/dev/null); then
+        break
+    fi
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.1
+done
+# The reply looks like "(uint32 12345,)".
+owner=${owner##* }
+owner=${owner%%,*}
+if [[ $owner != "$pid" ]]; then
+    echo "The new version was installed but did not start (another clipboard-linux was"
+    echo "running or starting). Log out and in to run it."
+    exit 1
+fi
 
 echo
 echo "Done. Copy some text, then press Super+V."
