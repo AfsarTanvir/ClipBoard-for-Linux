@@ -33,7 +33,7 @@ step "Installing to $PREFIX"
 cmake --install build
 
 step "Enabling start at login"
-# XDG variables only count when absolute (XDG spec; Qt ignores relative ones too).
+# XDG variables only count when absolute (the XDG spec says to ignore relative ones).
 CONFIG_HOME=$HOME/.config
 if [[ ${XDG_CONFIG_HOME:-} == /* ]]; then
     CONFIG_HOME=$XDG_CONFIG_HOME
@@ -61,9 +61,15 @@ python3 packaging/gnome-shortcuts.py install
 step "Starting clipboard-linux"
 # Stop an older version first: while it holds the D-Bus name the new one
 # refuses to start.
-if ! bash packaging/stop-daemon.sh "$BINARY"; then
-    echo "clipboard-linux is still running (it did not quit within 5 seconds), so the new"
-    echo "version was not started. Quit it (or log out and in), then run ./install.sh again."
+stopped=0
+bash packaging/stop-daemon.sh "$BINARY" || stopped=$?
+if ((stopped == 1)); then
+    echo "clipboard-linux is still running (it did not quit), so the new version was not"
+    echo "started. Log out and in (or end the process), then run ./install.sh again."
+    exit 1
+elif ((stopped == 2)); then
+    echo "The new version was installed but not started. Log in to the desktop, or run"
+    echo "'$BINARY' from a terminal inside your desktop session."
     exit 1
 fi
 nohup "$BINARY" >/dev/null 2>&1 &

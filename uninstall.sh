@@ -5,7 +5,7 @@ set -uo pipefail
 cd "$(dirname "$0")"
 PREFIX="${PREFIX:-$HOME/.local}"
 
-# XDG variables only count when absolute (XDG spec; Qt ignores relative ones too).
+# XDG variables only count when absolute (the XDG spec says to ignore relative ones).
 xdg_dir() { if [[ ${1:-} == /* ]]; then echo "$1"; else echo "$2"; fi; }
 CONFIG_HOME=$(xdg_dir "${XDG_CONFIG_HOME:-}" "$HOME/.config")
 DATA_HOME=$(xdg_dir "${XDG_DATA_HOME:-}" "$HOME/.local/share")
@@ -14,7 +14,16 @@ STATE_HOME=$(xdg_dir "${XDG_STATE_HOME:-}" "$HOME/.local/state")
 still_running=false
 if ! bash packaging/stop-daemon.sh "$PREFIX/bin/clipboard-linux"; then
     still_running=true
-    echo "Warning: clipboard-linux did not quit within 5 seconds; it keeps running until you log out."
+fi
+# Decide before removing anything, so a refused --purge leaves everything in place.
+if [[ "${1:-}" == "--purge" ]] && $still_running; then
+    echo "clipboard-linux is still running (or its state can't be checked), so nothing was"
+    echo "removed: its history can't be deleted while it is in use. Log out and in (or end"
+    echo "the process), then run ./uninstall.sh --purge again."
+    exit 1
+fi
+if $still_running; then
+    echo "Warning: clipboard-linux may still be running; it stops when you log out."
 fi
 
 python3 packaging/gnome-shortcuts.py uninstall
@@ -28,11 +37,7 @@ if [[ -f /etc/udev/rules.d/60-clipboard-linux-uinput.rules ]]; then
     sudo udevadm control --reload-rules
 fi
 
-if [[ "${1:-}" == "--purge" ]] && $still_running; then
-    echo "Not deleting your history and settings while clipboard-linux is still running."
-    echo "Quit it (or log out and in), then run ./uninstall.sh --purge again."
-    exit 1
-elif [[ "${1:-}" == "--purge" ]]; then
+if [[ "${1:-}" == "--purge" ]]; then
     rm -rf "$DATA_HOME/clipboard-linux" "$CONFIG_HOME/clipboard-linux" "$STATE_HOME/clipboard-linux"
     # Where earlier builds read their settings from.
     rm -f "$CONFIG_HOME/Unknown Organization/clipboard-linux.conf"
