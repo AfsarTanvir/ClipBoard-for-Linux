@@ -57,12 +57,22 @@ step "Starting clipboard-linux"
 # Restart it if an older version is already running, and wait (up to 5 s)
 # until it has released its D-Bus name, or the new one would refuse to start.
 if "$BINARY" --quit >/dev/null 2>&1; then
+    released=false
     for _ in $(seq 50); do
-        gdbus call --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus \
-            --method org.freedesktop.DBus.NameHasOwner io.github.afsartanvir.ClipboardLinux \
-            2>/dev/null | grep -q true || break
+        if ! owner=$(gdbus call --session --dest org.freedesktop.DBus \
+                --object-path /org/freedesktop/DBus --method org.freedesktop.DBus.NameHasOwner \
+                io.github.afsartanvir.ClipboardLinux 2>/dev/null); then
+            sleep 1 # cannot ask (no gdbus?): give it a moment instead
+            released=true
+            break
+        fi
+        if [[ $owner != *true* ]]; then
+            released=true
+            break
+        fi
         sleep 0.1
     done
+    $released || echo "Warning: the old clipboard-linux has not quit yet; the new one may not start."
 fi
 nohup "$BINARY" >/dev/null 2>&1 &
 disown

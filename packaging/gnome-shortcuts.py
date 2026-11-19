@@ -51,15 +51,19 @@ def get_list(schema, key):
     return list(ast.literal_eval(value))
 
 
+UNREADABLE = "unreadable"
+
+
 def read_marker():
+    """The recorded changes, None if there is no record, or UNREADABLE."""
     try:
         with open(TRAY_MARKER) as f:
             return {line.strip() for line in f if line.strip()}
     except FileNotFoundError:
-        return set()
+        return None
     except OSError as e:
         print(f"Warning: cannot read {TRAY_MARKER}: {e}", file=sys.stderr)
-        return set()
+        return UNREADABLE
 
 
 def set_list(schema, key, items):
@@ -90,24 +94,27 @@ def install():
 
     # Only after the change is saved, and merged with an earlier install's.
     # Written even when empty: it tells uninstall this install kept a record.
-    changes = read_marker()
-    if (was_installed and not os.path.exists(TRAY_MARKER)
-            and [b.lower() for b in before] == ["<super>m"]):
-        # Upgrading from a version that kept no record and left the list as
-        # it always did on GNOME's default (Super+V, Super+M): it took Super+V.
-        # Whether it also added Super+M is unknown, so leave Super+M alone.
-        changes.add("removed <Super>v")
-    if removed_super_v:
-        changes.add("removed <Super>v")
-    if added_super_m:
-        changes.add("added <Super>m")
-    try:
-        os.makedirs(STATE_DIR, exist_ok=True)
-        with open(TRAY_MARKER, "w") as f:
-            f.write("".join(f"{c}\n" for c in sorted(changes)))
-    except OSError as e:
-        print(f"Warning: cannot write {TRAY_MARKER}: {e}; uninstall will only restore Super+V.",
-              file=sys.stderr)
+    recorded = read_marker()
+    if recorded == UNREADABLE:
+        print("Warning: leaving that record as it is.", file=sys.stderr)
+    else:
+        changes = set(recorded or ())
+        if recorded is None and was_installed:
+            # Upgrading from a version that kept no record. Its uninstall
+            # always gave Super+V back, so keep doing that. Whether it added
+            # Super+M is unknown, so leave Super+M alone.
+            changes.add("removed <Super>v")
+        if removed_super_v:
+            changes.add("removed <Super>v")
+        if added_super_m:
+            changes.add("added <Super>m")
+        try:
+            os.makedirs(STATE_DIR, exist_ok=True)
+            with open(TRAY_MARKER, "w") as f:
+                f.write("".join(f"{c}\n" for c in sorted(changes)))
+        except OSError as e:
+            print(f"Warning: cannot write {TRAY_MARKER}: {e}; uninstall will only restore Super+V.",
+                  file=sys.stderr)
 
     print("Shortcuts installed: Super+V opens the history, Ctrl+Alt+1..9 paste item 1..9.")
     print("The notification list is now on: " + (", ".join(tray) or "no shortcut"))
@@ -123,14 +130,14 @@ def uninstall():
 
     before = get_list(SHELL_KEYS, MESSAGE_TRAY)
     tray = before
-    if os.path.exists(TRAY_MARKER):
-        changes = read_marker()
-        if "added <Super>m" in changes:
+    recorded = read_marker()
+    if isinstance(recorded, set):
+        if "added <Super>m" in recorded:
             tray = [b for b in tray if b.lower() != "<super>m"]
-        restore_super_v = "removed <Super>v" in changes
+        restore_super_v = "removed <Super>v" in recorded
     else:
-        # Installed by a version that kept no record, which took Super+V. If
-        # our shortcuts are gone too, there is nothing to undo.
+        # No usable record: installed by a version that kept none, which took
+        # Super+V. If our shortcuts are gone too, there is nothing to undo.
         restore_super_v = was_installed
     if restore_super_v and not any(b.lower() == "<super>v" for b in tray):
         tray = ["<Super>v"] + tray
