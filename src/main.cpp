@@ -4,12 +4,7 @@
 #include <QCommandLineParser>
 #include <QDBusInterface>
 #include <QDBusReply>
-#include <QDir>
-#include <QFile>
-#include <QFileInfo>
-#include <QSettings>
 #include <QStandardPaths>
-#include <QStringList>
 
 #include <cstdio>
 
@@ -23,68 +18,6 @@ void setAppInfo()
     QCoreApplication::setOrganizationName(QStringLiteral("clipboard-linux"));
     QCoreApplication::setApplicationName(QStringLiteral("clipboard-linux"));
     QCoreApplication::setApplicationVersion(QStringLiteral(APP_VERSION));
-}
-
-// Versions before the organization name was set read their settings from
-// ~/.config/Unknown Organization/clipboard-linux.conf. Move them to the new
-// location, so nobody loses settings (and history, through a smaller
-// maxItems) when upgrading. Moving, not copying, makes this happen only once.
-void migrateOldSettings()
-{
-    const QString newPath = QSettings().fileName();
-    const QString oldDir = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
-        + QStringLiteral("/Unknown Organization");
-    const QString oldPath = oldDir + QStringLiteral("/clipboard-linux.conf");
-    if (!QFile::exists(oldPath))
-        return;
-
-    if (QFile::exists(newPath)) {
-        // The new file was never read, the old one was in effect: copy the
-        // old values over it so nothing the user relied on changes, then set
-        // the old file aside. QSettings drops comments when it rewrites the
-        // file, so keep the user's version as .bak first.
-        const QString newBackup = newPath + QStringLiteral(".bak");
-        QFile::remove(newBackup);
-        if (!QFile::copy(newPath, newBackup)) {
-            qWarning("Settings: cannot back up %s, not merging old settings %s",
-                     qPrintable(newPath), qPrintable(oldPath));
-            return;
-        }
-        {
-            const QSettings oldSettings(oldPath, QSettings::IniFormat);
-            QSettings settings;
-            const QStringList keys = oldSettings.allKeys();
-            for (const QString &key : keys)
-                settings.setValue(key, oldSettings.value(key));
-            settings.sync();
-            if (settings.status() != QSettings::NoError) {
-                qWarning("Settings: cannot merge old settings %s into %s",
-                         qPrintable(oldPath), qPrintable(newPath));
-                return;
-            }
-        }
-        // The old file must not be merged again on the next start, or it
-        // would undo the user's later edits: rename it, or else delete it.
-        const QString oldBackup = oldPath + QStringLiteral(".old");
-        QFile::remove(oldBackup);
-        if (!QFile::rename(oldPath, oldBackup) && !QFile::remove(oldPath)) {
-            qWarning("Settings: merged %s but cannot rename or delete it; it will be merged "
-                     "again next time", qPrintable(oldPath));
-            return;
-        }
-        qInfo("Settings: merged old settings %s into %s (previous file kept as %s)",
-              qPrintable(oldPath), qPrintable(newPath), qPrintable(newBackup));
-        return;
-    }
-
-    QDir().mkpath(QFileInfo(newPath).absolutePath());
-    if (!QFile::rename(oldPath, newPath)) {
-        qWarning("Settings: cannot move old settings from %s to %s", qPrintable(oldPath),
-                 qPrintable(newPath));
-        return;
-    }
-    QDir().rmdir(oldDir); // only succeeds if nothing else is in it
-    qInfo("Settings: moved settings from %s to %s", qPrintable(oldPath), qPrintable(newPath));
 }
 
 // Sends one command to the running daemon over D-Bus.
@@ -171,7 +104,6 @@ int main(int argc, char *argv[])
 
     QApplication app(argc, argv);
     setAppInfo();
-    migrateOldSettings();
 
     // The app lives in the background; hiding the popup must not quit it.
     QApplication::setQuitOnLastWindowClosed(false);

@@ -24,7 +24,7 @@ fi
 if [[ "${1:-}" == "--purge" ]]; then
     rm -rf "$DATA_HOME/clipboard-linux" "$CONFIG_HOME/clipboard-linux" "$STATE_HOME/clipboard-linux"
     # Where earlier builds read their settings from.
-    rm -f "$CONFIG_HOME/Unknown Organization/clipboard-linux.conf"{,.old}
+    rm -f "$CONFIG_HOME/Unknown Organization/clipboard-linux.conf"
     rmdir "$CONFIG_HOME/Unknown Organization" 2>/dev/null
     echo "History and settings deleted."
 else

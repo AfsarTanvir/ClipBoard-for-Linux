@@ -4,24 +4,40 @@
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QSettings>
+#include <QStandardPaths>
 
 namespace {
 
 constexpr int DefaultMaxItems = 25;
 
+// Reads a setting from ~/.config/clipboard-linux/clipboard-linux.conf.
+// Builds made before the organization name was set read
+// ~/.config/Unknown Organization/clipboard-linux.conf instead, so a key the
+// new file lacks is taken from there: nobody loses settings (or history,
+// through a smaller maxItems) when upgrading. Neither file is changed.
+QVariant setting(const QString &key, const QVariant &defaultValue)
+{
+    const QSettings settings;
+    if (settings.contains(key))
+        return settings.value(key);
+    const QSettings oldSettings(
+        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
+            + QStringLiteral("/Unknown Organization/clipboard-linux.conf"),
+        QSettings::IniFormat);
+    return oldSettings.value(key, defaultValue);
+}
+
 } // namespace
 
 Daemon::Daemon(const QString &dbPath, QObject *parent)
     : QObject(parent)
-    , m_store(dbPath, QSettings().value(QStringLiteral("history/maxItems"), DefaultMaxItems).toInt())
+    , m_store(dbPath, setting(QStringLiteral("history/maxItems"), DefaultMaxItems).toInt())
     , m_model(&m_store)
     , m_popup(&m_model)
 {
-    // Settings live in ~/.config/clipboard-linux/clipboard-linux.conf
-    QSettings settings;
-    m_autoPaste = settings.value(QStringLiteral("paste/auto"), true).toBool();
+    m_autoPaste = setting(QStringLiteral("paste/auto"), true).toBool();
     m_paster.setKeys(Paster::keysFromString(
-        settings.value(QStringLiteral("paste/keys"), QStringLiteral("ctrl+v")).toString()));
+        setting(QStringLiteral("paste/keys"), QStringLiteral("ctrl+v")).toString()));
 
     connect(&m_watcher, &ClipboardWatcher::textCopied, &m_store, &HistoryStore::addText);
 
