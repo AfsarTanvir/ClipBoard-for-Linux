@@ -12,8 +12,9 @@ namespace {
 
 void setAppInfo()
 {
-    // QSettings uses organization/application for its path:
-    // ~/.config/clipboard-linux/clipboard-linux.conf
+    // QSettings builds its path from both names. Without an organization
+    // name Qt uses "Unknown Organization", so set it to get
+    // ~/.config/clipboard-linux/clipboard-linux.conf.
     QCoreApplication::setOrganizationName(QStringLiteral("clipboard-linux"));
     QCoreApplication::setApplicationName(QStringLiteral("clipboard-linux"));
     QCoreApplication::setApplicationVersion(QStringLiteral(APP_VERSION));
@@ -36,6 +37,20 @@ int runClient()
     parser.addOptions({pasteOption, clearAllOption, quitOption});
     parser.process(*QCoreApplication::instance());
 
+    // Check the usage before contacting the daemon, so a typo is reported
+    // as such even when the daemon is not running.
+    int number = 0;
+    if (parser.isSet(pasteOption)) {
+        bool ok = false;
+        number = parser.value(pasteOption).toInt(&ok);
+        if (!ok || number < 1) {
+            std::fprintf(stderr, "--paste needs a number of 1 or more.\n");
+            return 2;
+        }
+    } else if (!parser.isSet(clearAllOption) && !parser.isSet(quitOption)) {
+        parser.showHelp(2);
+    }
+
     QDBusInterface daemon(QString::fromLatin1(Daemon::ServiceName),
                           QString::fromLatin1(Daemon::ObjectPath),
                           QString::fromLatin1(Daemon::InterfaceName),
@@ -47,12 +62,6 @@ int runClient()
 
     QDBusMessage reply;
     if (parser.isSet(pasteOption)) {
-        bool ok = false;
-        const int number = parser.value(pasteOption).toInt(&ok);
-        if (!ok) {
-            std::fprintf(stderr, "--paste needs a number.\n");
-            return 2;
-        }
         const QDBusReply<bool> pasted = daemon.call(QStringLiteral("PasteIndex"), number);
         if (!pasted.isValid()) {
             std::fprintf(stderr, "%s\n", qPrintable(pasted.error().message()));
@@ -65,10 +74,8 @@ int runClient()
         return 0;
     } else if (parser.isSet(clearAllOption)) {
         reply = daemon.call(QStringLiteral("ClearAll"));
-    } else if (parser.isSet(quitOption)) {
-        reply = daemon.call(QStringLiteral("Quit"));
     } else {
-        parser.showHelp(2);
+        reply = daemon.call(QStringLiteral("Quit"));
     }
 
     if (reply.type() == QDBusMessage::ErrorMessage) {

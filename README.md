@@ -13,6 +13,7 @@ A clipboard history manager for Linux (GNOME on Wayland), modelled on the Window
 - Delete a single item, or clear all unpinned items
 - Duplicate copies are merged and moved to the top
 - Copies marked secret by password managers are never stored
+- Copied files (Ctrl + C in Files) are skipped; only text is kept
 
 ## Setup
 
@@ -27,10 +28,23 @@ sudo apt install build-essential cmake pkg-config qt6-base-dev libqt6sql6-sqlite
 `/dev/uinput` (needed for automatic pasting). It also:
 
 - installs the app to `~/.local/bin/clipboard-linux`
-- starts it at login (`~/.config/autostart/clipboard-linux.desktop`)
-- adds the GNOME shortcuts, and moves GNOME's notification list from **Super + V** to **Super + M**
+- starts it at login (`~/.config/autostart/clipboard-linux.desktop`, or under `$XDG_CONFIG_HOME` if set)
+- adds the GNOME shortcuts, and takes **Super + V** away from GNOME's notification list (it gets
+  **Super + M** if no other shortcut is left; GNOME's default already has Super + M)
 
-To remove everything: `./uninstall.sh` (add `--purge` to also delete your history).
+To remove everything: `./uninstall.sh` (add `--purge` to also delete your history and settings).
+Both scripts stop the running app first. If it doesn't quit within about 10 seconds, `install.sh`
+stops and asks you to log out and in (or end it) and run it again, and `--purge` removes
+nothing until the app is gone. Run them from a terminal inside your desktop session (they
+need `gdbus`, which GNOME includes).
+Uninstalling undoes what the installer changed on GNOME's notification-list shortcut: it gives
+Super + V back if the installer took it, and removes Super + M only if the installer added it.
+
+Earlier builds read their settings from `~/.config/Unknown Organization/clipboard-linux.conf`
+(and `~/.config/Unknown Organization.conf`) by mistake. Those files are still used for any
+setting missing from the file above, so upgrading keeps your settings; move them over and
+delete them when convenient. If a setting in the file above can't be read, the older files are
+not used for it: `maxItems` then keeps all history and `auto` turns pasting off.
 
 ## Usage
 
@@ -59,10 +73,11 @@ clipboard-linux --quit
 
 ```ini
 [history]
-maxItems=25          ; unpinned items to keep
+maxItems=100         ; unpinned items to keep (minimum 1; not a number: all kept)
 
 [paste]
 auto=true            ; false = only copy, you press Ctrl+V yourself
+                     ; (true/false, yes/no, on/off, 1/0; anything else means off)
 keys=ctrl+v          ; ctrl+v | ctrl+shift+v (terminals) | shift+insert
 ```
 

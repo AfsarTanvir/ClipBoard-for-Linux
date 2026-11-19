@@ -21,7 +21,7 @@ class HistoryStore : public QObject
     Q_OBJECT
 
 public:
-    explicit HistoryStore(const QString &dbPath, int maxUnpinned = 25, QObject *parent = nullptr);
+    explicit HistoryStore(const QString &dbPath, int maxUnpinned = 100, QObject *parent = nullptr);
     ~HistoryStore() override;
 
     bool open();

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build clipboard-linux, install it for the current user and set it up:
 #   ~/.local/bin/clipboard-linux        the app
-#   ~/.config/autostart/...desktop      start at login
+#   ~/.config/autostart/...desktop      start at login ($XDG_CONFIG_HOME if set)
 #   /etc/udev/rules.d/...rules          uinput access for auto-paste (asks for sudo)
 #   GNOME shortcuts                     Super+V, Ctrl+Alt+1..9
 set -euo pipefail
@@ -33,9 +33,15 @@ step "Installing to $PREFIX"
 cmake --install build
 
 step "Enabling start at login"
-mkdir -p "$HOME/.config/autostart"
+# XDG variables only count when absolute (the XDG spec says to ignore relative ones).
+CONFIG_HOME=$HOME/.config
+if [[ ${XDG_CONFIG_HOME:-} == /* ]]; then
+    CONFIG_HOME=$XDG_CONFIG_HOME
+fi
+AUTOSTART_DIR="$CONFIG_HOME/autostart"
+mkdir -p "$AUTOSTART_DIR"
 sed "s|@BINARY@|$BINARY|" packaging/clipboard-linux.desktop \
-    > "$HOME/.config/autostart/clipboard-linux.desktop"
+    > "$AUTOSTART_DIR/clipboard-linux.desktop"
 
 step "Allowing auto-paste through /dev/uinput"
 if [[ -f "$UDEV_RULE" ]] && cmp -s packaging/60-clipboard-linux-uinput.rules "$UDEV_RULE"; then
@@ -53,8 +59,19 @@ step "Adding GNOME keyboard shortcuts"
 python3 packaging/gnome-shortcuts.py install
 
 step "Starting clipboard-linux"
-# Restart it if an older version is already running.
-"$BINARY" --quit >/dev/null 2>&1 && sleep 0.5
+# Stop an older version first: while it holds the D-Bus name the new one
+# refuses to start.
+stopped=0
+bash packaging/stop-daemon.sh || stopped=$?
+if ((stopped == 1)); then
+    echo "clipboard-linux is still running (it did not quit), so the new version was not"
+    echo "started. Log out and in (or end the process), then run ./install.sh again."
+    exit 1
+elif ((stopped == 2)); then
+    echo "The new version was installed but not started; it starts when you next log in."
+    echo "To start it now, run ./install.sh again from a terminal inside your desktop session."
+    exit 1
+fi
 nohup "$BINARY" >/dev/null 2>&1 &
 disown
 

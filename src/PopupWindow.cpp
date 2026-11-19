@@ -23,6 +23,8 @@ namespace {
 constexpr int PopupWidth = 380;
 constexpr int PopupHeight = 480;
 constexpr int CornerRadius = 10;
+// Second focus request if the window manager had not mapped the popup yet.
+constexpr int FocusRetryMs = 150;
 
 QString popupStyleSheet()
 {
@@ -135,7 +137,7 @@ void PopupWindow::showPopup()
 
     // The window manager may not have finished mapping the window when the
     // first request arrives; ask once more if we still are not focused.
-    QTimer::singleShot(150, this, [this] {
+    QTimer::singleShot(FocusRetryMs, this, [this] {
         if (isVisible() && !isActiveWindow())
             X11Activation::activate(this);
     });

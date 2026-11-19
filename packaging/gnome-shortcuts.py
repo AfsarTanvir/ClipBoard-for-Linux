@@ -2,13 +2,15 @@
 """Add or remove the GNOME keyboard shortcuts for clipboard-linux.
 
     gnome-shortcuts.py install     Super+V and Ctrl+Alt+1..9
-    gnome-shortcuts.py uninstall   remove them and give Super+V back to GNOME
+    gnome-shortcuts.py uninstall   remove them and undo what install changed on
+                                   GNOME's notification-list shortcut
 
 GNOME on Wayland does not let apps grab global shortcuts, so we register
 "custom shortcuts" (the same as Settings > Keyboard > Custom Shortcuts)
 that call the running app over D-Bus.
 """
 import ast
+import os
 import subprocess
 import sys
 
@@ -19,6 +21,19 @@ OUR_PREFIX = BASE_PATH + "clipboard-linux-"
 
 SHELL_KEYS = "org.gnome.shell.keybindings"
 MESSAGE_TRAY = "toggle-message-tray"  # GNOME binds Super+V to the notification list
+
+def xdg_dir(variable, default):
+    """An XDG base folder; relative values are ignored, as the XDG spec requires."""
+    value = os.environ.get(variable, "")
+    return value if os.path.isabs(value) else os.path.expanduser(default)
+
+
+# Records what install changed on the notification list ("removed <Super>v",
+# "added <Super>m"), so uninstall undoes only that and keeps the user's own
+# bindings. Kept in the state folder, apart from the settings, so resetting
+# the settings does not lose it.
+STATE_DIR = os.path.join(xdg_dir("XDG_STATE_HOME", "~/.local/state"), "clipboard-linux")
+TRAY_MARKER = os.path.join(STATE_DIR, "notification-shortcut-changes")
 
 DBUS_CALL = ("gdbus call --session --dest io.github.afsartanvir.ClipboardLinux "
              "--object-path /ClipboardLinux "
@@ -42,12 +57,29 @@ def get_list(schema, key):
     return list(ast.literal_eval(value))
 
 
+UNREADABLE = "unreadable"
+
+
+def read_marker():
+    """The recorded changes, None if there is no record, or UNREADABLE."""
+    try:
+        with open(TRAY_MARKER) as f:
+            return {line.strip() for line in f if line.strip()}
+    except FileNotFoundError:
+        return None
+    except OSError as e:
+        print(f"Warning: cannot read {TRAY_MARKER}: {e}", file=sys.stderr)
+        return UNREADABLE
+
+
 def set_list(schema, key, items):
     gsettings("set", schema, key, "[" + ", ".join(f"'{i}'" for i in items) + "]" if items else "@as []")
 
 
 def install():
-    paths = [p for p in get_list(MEDIA_KEYS, "custom-keybindings") if not p.startswith(OUR_PREFIX)]
+    existing = get_list(MEDIA_KEYS, "custom-keybindings")
+    was_installed = any(p.startswith(OUR_PREFIX) for p in existing)
+    paths = [p for p in existing if not p.startswith(OUR_PREFIX)]
     for slug, name, binding, command in SHORTCUTS:
         path = f"{OUR_PREFIX}{slug}/"
         schema = f"{CUSTOM}:{path}"
@@ -57,27 +89,77 @@ def install():
         paths.append(path)
     set_list(MEDIA_KEYS, "custom-keybindings", paths)
 
-    tray = [b for b in get_list(SHELL_KEYS, MESSAGE_TRAY) if b.lower() != "<super>v"]
-    if not tray:
+    before = get_list(SHELL_KEYS, MESSAGE_TRAY)
+    removed_super_v = any(b.lower() == "<super>v" for b in before)
+    tray = [b for b in before if b.lower() != "<super>v"]
+    added_super_m = removed_super_v and not tray
+    if added_super_m:
         tray = ["<Super>m"]
-    set_list(SHELL_KEYS, MESSAGE_TRAY, tray)
+    if tray != before:
+        set_list(SHELL_KEYS, MESSAGE_TRAY, tray)
+
+    # Only after the change is saved, and merged with an earlier install's.
+    # Written even when empty: it tells uninstall this install kept a record.
+    recorded = read_marker()
+    if recorded == UNREADABLE:
+        print("Warning: leaving that record as it is.", file=sys.stderr)
+    else:
+        changes = set(recorded or ())
+        if recorded is None and was_installed:
+            # Upgrading from a version that kept no record (or the record was
+            # deleted). That version's uninstall always gave Super+V back, so
+            # keep doing that. Whether it added Super+M is unknown, so leave
+            # Super+M alone.
+            changes.add("removed <Super>v")
+            print("Note: no record of the previous install's shortcut changes was found; "
+                  "uninstall will give Super+V back to the notification list.")
+        if removed_super_v:
+            changes.add("removed <Super>v")
+        if added_super_m:
+            changes.add("added <Super>m")
+        try:
+            os.makedirs(STATE_DIR, exist_ok=True)
+            with open(TRAY_MARKER, "w") as f:
+                f.write("".join(f"{c}\n" for c in sorted(changes)))
+        except OSError as e:
+            print(f"Warning: cannot write {TRAY_MARKER}: {e}; uninstall may not undo this "
+                  "install's changes to the notification-list shortcut.", file=sys.stderr)
 
     print("Shortcuts installed: Super+V opens the history, Ctrl+Alt+1..9 paste item 1..9.")
-    print("The notification list is now on: " + ", ".join(tray))
+    print("The notification list is now on: " + (", ".join(tray) or "no shortcut"))
 
 
 def uninstall():
     paths = get_list(MEDIA_KEYS, "custom-keybindings")
+    was_installed = any(p.startswith(OUR_PREFIX) for p in paths)
     for path in paths:
         if path.startswith(OUR_PREFIX):
             gsettings("reset-recursively", f"{CUSTOM}:{path}")
     set_list(MEDIA_KEYS, "custom-keybindings", [p for p in paths if not p.startswith(OUR_PREFIX)])
 
-    tray = get_list(SHELL_KEYS, MESSAGE_TRAY)
-    if not any(b.lower() == "<super>v" for b in tray):
-        set_list(SHELL_KEYS, MESSAGE_TRAY, ["<Super>v"] + tray)
+    before = get_list(SHELL_KEYS, MESSAGE_TRAY)
+    tray = before
+    recorded = read_marker()
+    if isinstance(recorded, set):
+        if "added <Super>m" in recorded:
+            tray = [b for b in tray if b.lower() != "<super>m"]
+        restore_super_v = "removed <Super>v" in recorded
+    else:
+        # No usable record: installed by a version that kept none, which took
+        # Super+V. If our shortcuts are gone too, there is nothing to undo.
+        restore_super_v = was_installed
+    if restore_super_v and not any(b.lower() == "<super>v" for b in tray):
+        tray = ["<Super>v"] + tray
+    if tray != before:
+        set_list(SHELL_KEYS, MESSAGE_TRAY, tray)
+    try:
+        if os.path.exists(TRAY_MARKER):
+            os.remove(TRAY_MARKER)
+            os.rmdir(STATE_DIR)
+    except OSError:
+        pass  # folder not empty, or nothing we can do
 
-    print("Shortcuts removed; Super+V opens the notification list again.")
+    print("Shortcuts removed. The notification list is on: " + (", ".join(tray) or "no shortcut"))
 
 
 if __name__ == "__main__":

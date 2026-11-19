@@ -4,18 +4,139 @@
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QSettings>
+#include <QStandardPaths>
+#include <QStringList>
+
+#include <functional>
+#include <limits>
+
+namespace {
+
+constexpr int DefaultMaxItems = 100;
+
+// Where a setting is looked up; the first file that has the key decides:
+//   ~/.config/clipboard-linux/clipboard-linux.conf      the documented file
+//   ~/.config/Unknown Organization/clipboard-linux.conf what builds made before
+//   ~/.config/Unknown Organization.conf                 the organization name was
+//       set read (their file and Qt's organization-wide one), so upgrading keeps
+//       those settings
+//   ~/.config/clipboard-linux.conf                      Qt's organization-wide file
+//   /etc/xdg/clipboard-linux/...                        system-wide files
+// If isValid rejects that value it is reported and `rejected` is set, so the
+// caller can pick a safe fallback; lower files are not consulted, so a typo
+// can't bring back an older value. No file is ever changed.
+struct Lookup
+{
+    QVariant value;
+    bool found = false;
+    bool rejected = false; // the deciding file's value was refused by isValid
+};
+
+Lookup lookup(const QString &key, const std::function<bool(const QVariant &)> &isValid = {})
+{
+    const QString org = QCoreApplication::organizationName();
+    const QString app = QCoreApplication::applicationName();
+    QSettings userApp(QSettings::UserScope, org, app);
+    userApp.setFallbacksEnabled(false);
+    const QSettings oldFile(
+        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
+            + QStringLiteral("/Unknown Organization/clipboard-linux.conf"),
+        QSettings::IniFormat);
+    QSettings oldOrg(QSettings::UserScope, QStringLiteral("Unknown Organization"));
+    oldOrg.setFallbacksEnabled(false);
+    QSettings userOrg(QSettings::UserScope, org);
+    userOrg.setFallbacksEnabled(false);
+    const QSettings system(QSettings::SystemScope, org, app);
+
+    Lookup result;
+    const QSettings *const sources[] = {&userApp, &oldFile, &oldOrg, &userOrg, &system};
+    for (const QSettings *source : sources) {
+        if (!source->contains(key))
+            continue;
+        const QVariant value = source->value(key);
+        if (!isValid || isValid(value)) {
+            result.value = value;
+            result.found = true;
+            return result;
+        }
+        result.rejected = true;
+        // "10,20" is read as a list, whose toString() is empty.
+        const QString shown = value.typeId() == QMetaType::QStringList
+            ? value.toStringList().join(QLatin1Char(','))
+            : value.toString();
+        qWarning("Daemon: ignoring invalid %s '%s' in %s", qPrintable(key), qPrintable(shown),
+                 qPrintable(source->fileName()));
+        return result;
+    }
+    return result;
+}
+
+QVariant setting(const QString &key, const QVariant &defaultValue)
+{
+    const Lookup result = lookup(key);
+    return result.found ? result.value : defaultValue;
+}
+
+// history/maxItems: numbers below 1 mean 1 (HistoryStore clamps; the
+// documented minimum). A value that isn't a number must never prune the
+// history, so it keeps it all.
+int maxItemsSetting()
+{
+    const Lookup result = lookup(QStringLiteral("history/maxItems"), [](const QVariant &value) {
+        bool ok = false;
+        value.toInt(&ok);
+        return ok;
+    });
+    if (result.found)
+        return result.value.toInt();
+    if (result.rejected) {
+        qWarning("Daemon: keeping all history until history/maxItems is fixed");
+        return std::numeric_limits<int>::max();
+    }
+    return DefaultMaxItems;
+}
+
+// paste/auto: true/false, 1/0, yes/no or on/off. Pasting sends keystrokes to
+// another app, so a value we can't read means off, never on.
+bool autoPasteSetting()
+{
+    // 1 = on, 0 = off, -1 = not a word we know.
+    const auto parse = [](const QVariant &value) {
+        const QString text = value.toString().trimmed().toLower();
+        for (const QLatin1String word : {QLatin1String("true"), QLatin1String("1"),
+                                         QLatin1String("yes"), QLatin1String("on")}) {
+            if (text == word)
+                return 1;
+        }
+        for (const QLatin1String word : {QLatin1String("false"), QLatin1String("0"),
+                                         QLatin1String("no"), QLatin1String("off")}) {
+            if (text == word)
+                return 0;
+        }
+        return -1;
+    };
+    const Lookup result = lookup(QStringLiteral("paste/auto"),
+                                 [&](const QVariant &value) { return parse(value) != -1; });
+    if (result.found)
+        return parse(result.value) == 1;
+    if (result.rejected) {
+        qWarning("Daemon: auto-paste is off until paste/auto is fixed");
+        return false;
+    }
+    return true;
+}
+
+} // namespace
 
 Daemon::Daemon(const QString &dbPath, QObject *parent)
     : QObject(parent)
-    , m_store(dbPath, QSettings().value(QStringLiteral("history/maxItems"), 25).toInt())
+    , m_store(dbPath, maxItemsSetting())
     , m_model(&m_store)
     , m_popup(&m_model)
 {
-    // Settings live in ~/.config/clipboard-linux/clipboard-linux.conf
-    QSettings settings;
-    m_autoPaste = settings.value(QStringLiteral("paste/auto"), true).toBool();
+    m_autoPaste = autoPasteSetting();
     m_paster.setKeys(Paster::keysFromString(
-        settings.value(QStringLiteral("paste/keys"), QStringLiteral("ctrl+v")).toString()));
+        setting(QStringLiteral("paste/keys"), QStringLiteral("ctrl+v")).toString()));
 
     connect(&m_watcher, &ClipboardWatcher::textCopied, &m_store, &HistoryStore::addText);
 
@@ -29,13 +150,13 @@ bool Daemon::start()
 {
     QDBusConnection bus = QDBusConnection::sessionBus();
     if (!bus.isConnected()) {
-        qWarning("Cannot connect to the session D-Bus.");
+        qWarning("Daemon: cannot connect to the session D-Bus.");
         return false;
     }
 
     // Claiming the name first doubles as the single-instance check.
     if (!bus.registerService(QString::fromLatin1(ServiceName))) {
-        qWarning("clipboard-linux is already running.");
+        qWarning("Daemon: clipboard-linux is already running.");
         return false;
     }
 
@@ -59,6 +180,8 @@ void Daemon::Show()
 
 bool Daemon::PasteIndex(int number)
 {
+    if (number < 1)
+        return false;
     const ClipItem *item = m_model.itemAt(number - 1);
     if (!item)
         return false;
