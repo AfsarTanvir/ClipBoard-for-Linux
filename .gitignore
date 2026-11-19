@@ -6,6 +6,10 @@ cmake-build-*/
 # Local project notes (setup guides, commit notes, plans) - kept out of git
 doc/
 
+# Python bytecode
+__pycache__/
+*.pyc
+
 # Editor / IDE
 .vscode/
 .idea/

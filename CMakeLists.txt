@@ -58,6 +58,7 @@ if(BUILD_TESTING)
     )
     target_include_directories(test_history_store PRIVATE include)
     target_link_libraries(test_history_store PRIVATE Qt6::Sql Qt6::Test)
+    target_compile_options(test_history_store PRIVATE -Wall -Wextra -Wpedantic)
     add_test(NAME test_history_store COMMAND test_history_store)
 endif()
 
