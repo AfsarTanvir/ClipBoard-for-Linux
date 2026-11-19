@@ -32,11 +32,25 @@ QVariant setting(const QString &key, const QVariant &defaultValue)
     return QSettings().value(key, defaultValue); // system-wide defaults, then ours
 }
 
+// history/maxItems as a positive number. A typo must not shrink the history:
+// anything else is reported and replaced by the default.
+int maxItemsSetting()
+{
+    const QVariant value = setting(QStringLiteral("history/maxItems"), DefaultMaxItems);
+    bool ok = false;
+    const int maxItems = value.toInt(&ok);
+    if (ok && maxItems >= 1)
+        return maxItems;
+    qWarning("Daemon: invalid history/maxItems '%s', using %d", qPrintable(value.toString()),
+             DefaultMaxItems);
+    return DefaultMaxItems;
+}
+
 } // namespace
 
 Daemon::Daemon(const QString &dbPath, QObject *parent)
     : QObject(parent)
-    , m_store(dbPath, setting(QStringLiteral("history/maxItems"), DefaultMaxItems).toInt())
+    , m_store(dbPath, maxItemsSetting())
     , m_model(&m_store)
     , m_popup(&m_model)
 {
