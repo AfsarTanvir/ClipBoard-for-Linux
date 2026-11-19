@@ -57,6 +57,9 @@ def read_marker():
             return {line.strip() for line in f if line.strip()}
     except FileNotFoundError:
         return set()
+    except OSError as e:
+        print(f"Warning: cannot read {TRAY_MARKER}: {e}", file=sys.stderr)
+        return set()
 
 
 def set_list(schema, key, items):
@@ -88,18 +91,23 @@ def install():
     # Only after the change is saved, and merged with an earlier install's.
     # Written even when empty: it tells uninstall this install kept a record.
     changes = read_marker()
-    if was_installed and not os.path.exists(TRAY_MARKER) and not removed_super_v:
-        # Upgrading from a version that kept no record: it took Super+V away
-        # if it had been there. Whether it also added Super+M is unknown, so
-        # leave Super+M alone.
+    if (was_installed and not os.path.exists(TRAY_MARKER)
+            and [b.lower() for b in before] == ["<super>m"]):
+        # Upgrading from a version that kept no record and left the list as
+        # it always did on GNOME's default (Super+V, Super+M): it took Super+V.
+        # Whether it also added Super+M is unknown, so leave Super+M alone.
         changes.add("removed <Super>v")
     if removed_super_v:
         changes.add("removed <Super>v")
     if added_super_m:
         changes.add("added <Super>m")
-    os.makedirs(STATE_DIR, exist_ok=True)
-    with open(TRAY_MARKER, "w") as f:
-        f.write("".join(f"{c}\n" for c in sorted(changes)))
+    try:
+        os.makedirs(STATE_DIR, exist_ok=True)
+        with open(TRAY_MARKER, "w") as f:
+            f.write("".join(f"{c}\n" for c in sorted(changes)))
+    except OSError as e:
+        print(f"Warning: cannot write {TRAY_MARKER}: {e}; uninstall will only restore Super+V.",
+              file=sys.stderr)
 
     print("Shortcuts installed: Super+V opens the history, Ctrl+Alt+1..9 paste item 1..9.")
     print("The notification list is now on: " + (", ".join(tray) or "no shortcut"))
@@ -128,12 +136,12 @@ def uninstall():
         tray = ["<Super>v"] + tray
     if tray != before:
         set_list(SHELL_KEYS, MESSAGE_TRAY, tray)
-    if os.path.exists(TRAY_MARKER):
-        os.remove(TRAY_MARKER)
-        try:
+    try:
+        if os.path.exists(TRAY_MARKER):
+            os.remove(TRAY_MARKER)
             os.rmdir(STATE_DIR)
-        except OSError:
-            pass  # not empty
+    except OSError:
+        pass  # folder not empty, or nothing we can do
 
     print("Shortcuts removed. The notification list is on: " + (", ".join(tray) or "no shortcut"))
 

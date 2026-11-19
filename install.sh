@@ -54,8 +54,16 @@ step "Adding GNOME keyboard shortcuts"
 python3 packaging/gnome-shortcuts.py install
 
 step "Starting clipboard-linux"
-# Restart it if an older version is already running.
-"$BINARY" --quit >/dev/null 2>&1 && sleep 0.5
+# Restart it if an older version is already running, and wait (up to 5 s)
+# until it has released its D-Bus name, or the new one would refuse to start.
+if "$BINARY" --quit >/dev/null 2>&1; then
+    for _ in $(seq 50); do
+        gdbus call --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus \
+            --method org.freedesktop.DBus.NameHasOwner io.github.afsartanvir.ClipboardLinux \
+            2>/dev/null | grep -q true || break
+        sleep 0.1
+    done
+fi
 nohup "$BINARY" >/dev/null 2>&1 &
 disown
 
