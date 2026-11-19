@@ -17,14 +17,19 @@ constexpr int DefaultMaxItems = 25;
 // through a smaller maxItems) when upgrading. Neither file is changed.
 QVariant setting(const QString &key, const QVariant &defaultValue)
 {
-    const QSettings settings;
+    QSettings settings;
+    // Only the user's own file counts here; system-wide defaults
+    // (/etc/xdg/...) must not hide the user's old settings.
+    settings.setFallbacksEnabled(false);
     if (settings.contains(key))
         return settings.value(key);
     const QSettings oldSettings(
         QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
             + QStringLiteral("/Unknown Organization/clipboard-linux.conf"),
         QSettings::IniFormat);
-    return oldSettings.value(key, defaultValue);
+    if (oldSettings.contains(key))
+        return oldSettings.value(key);
+    return QSettings().value(key, defaultValue); // system-wide defaults, then ours
 }
 
 } // namespace
