@@ -6,6 +6,8 @@
 #include <QSettings>
 #include <QStandardPaths>
 
+#include <functional>
+
 namespace {
 
 constexpr int DefaultMaxItems = 25;
@@ -14,36 +16,47 @@ constexpr int DefaultMaxItems = 25;
 // Builds made before the organization name was set read
 // ~/.config/Unknown Organization/clipboard-linux.conf instead, so a key the
 // new file lacks is taken from there: nobody loses settings (or history,
-// through a smaller maxItems) when upgrading. Neither file is changed.
-QVariant setting(const QString &key, const QVariant &defaultValue)
+// through a smaller maxItems) when upgrading. Then come Qt's system-wide
+// system-wide files (/etc/xdg/...), then defaultValue. A value isValid rejects is
+// reported and the next source is tried. Neither file is changed.
+QVariant setting(const QString &key, const QVariant &defaultValue,
+                 const std::function<bool(const QVariant &)> &isValid = {})
 {
-    QSettings settings;
-    // Only the user's own file counts here; system-wide defaults
-    // (/etc/xdg/...) must not hide the user's old settings.
-    settings.setFallbacksEnabled(false);
-    if (settings.contains(key))
-        return settings.value(key);
+    QSettings userSettings;
+    userSettings.setFallbacksEnabled(false);
     const QSettings oldSettings(
         QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
             + QStringLiteral("/Unknown Organization/clipboard-linux.conf"),
         QSettings::IniFormat);
-    if (oldSettings.contains(key))
-        return oldSettings.value(key);
-    return QSettings().value(key, defaultValue); // system-wide defaults, then ours
+    const QSettings systemSettings(QSettings::SystemScope, QCoreApplication::organizationName(),
+                                   QCoreApplication::applicationName());
+    const QSettings *const sources[] = {&userSettings, &oldSettings, &systemSettings};
+    for (const QSettings *source : sources) {
+        if (!source->contains(key))
+            continue;
+        const QVariant value = source->value(key);
+        if (!isValid || isValid(value))
+            return value;
+        // "10,20" is read as a list, whose toString() is empty.
+        const QString shown = value.typeId() == QMetaType::QStringList
+            ? value.toStringList().join(QLatin1Char(','))
+            : value.toString();
+        qWarning("Daemon: ignoring invalid %s '%s' in %s", qPrintable(key), qPrintable(shown),
+                 qPrintable(source->fileName()));
+    }
+    return defaultValue;
 }
 
-// history/maxItems as a positive number. A typo must not shrink the history:
-// anything else is reported and replaced by the default.
+// history/maxItems must be a number; a typo must not shrink the history, so
+// anything else is skipped. Numbers below 1 mean 1 (HistoryStore clamps).
 int maxItemsSetting()
 {
-    const QVariant value = setting(QStringLiteral("history/maxItems"), DefaultMaxItems);
-    bool ok = false;
-    const int maxItems = value.toInt(&ok);
-    if (ok && maxItems >= 1)
-        return maxItems;
-    qWarning("Daemon: invalid history/maxItems '%s', using %d", qPrintable(value.toString()),
-             DefaultMaxItems);
-    return DefaultMaxItems;
+    return setting(QStringLiteral("history/maxItems"), DefaultMaxItems, [](const QVariant &value) {
+               bool ok = false;
+               value.toInt(&ok);
+               return ok;
+           })
+        .toInt();
 }
 
 } // namespace
