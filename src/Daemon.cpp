@@ -5,9 +5,15 @@
 #include <QDBusConnectionInterface>
 #include <QSettings>
 
+namespace {
+
+constexpr int DefaultMaxItems = 25;
+
+} // namespace
+
 Daemon::Daemon(const QString &dbPath, QObject *parent)
     : QObject(parent)
-    , m_store(dbPath, QSettings().value(QStringLiteral("history/maxItems"), 25).toInt())
+    , m_store(dbPath, QSettings().value(QStringLiteral("history/maxItems"), DefaultMaxItems).toInt())
     , m_model(&m_store)
     , m_popup(&m_model)
 {
@@ -29,13 +35,13 @@ bool Daemon::start()
 {
     QDBusConnection bus = QDBusConnection::sessionBus();
     if (!bus.isConnected()) {
-        qWarning("Cannot connect to the session D-Bus.");
+        qWarning("Daemon: cannot connect to the session D-Bus.");
         return false;
     }
 
     // Claiming the name first doubles as the single-instance check.
     if (!bus.registerService(QString::fromLatin1(ServiceName))) {
-        qWarning("clipboard-linux is already running.");
+        qWarning("Daemon: clipboard-linux is already running.");
         return false;
     }
 
