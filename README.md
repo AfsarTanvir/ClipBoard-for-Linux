@@ -35,7 +35,8 @@ sudo apt install build-essential cmake pkg-config qt6-base-dev libqt6sql6-sqlite
 To remove everything: `./uninstall.sh` (add `--purge` to also delete your history and settings).
 Both scripts stop the running app first. If it doesn't quit within a few seconds, `install.sh`
 stops and asks you to log out and in (or end it) and run it again, and `--purge` removes
-nothing until the app is gone. Run them from a terminal inside your desktop session.
+nothing until the app is gone. Run them from a terminal inside your desktop session (they
+need `gdbus`, which GNOME includes).
 Uninstalling undoes what the installer changed on GNOME's notification-list shortcut: it gives
 Super + V back if the installer took it, and removes Super + M only if the installer added it.
 
@@ -70,10 +71,11 @@ clipboard-linux --quit
 
 ```ini
 [history]
-maxItems=25          ; unpinned items to keep (a value that isn't a number is ignored)
+maxItems=25          ; unpinned items to keep (not a number: all history is kept)
 
 [paste]
 auto=true            ; false = only copy, you press Ctrl+V yourself
+                     ; (true/false, yes/no, on/off, 1/0; anything else means off)
 keys=ctrl+v          ; ctrl+v | ctrl+shift+v (terminals) | shift+insert
 ```
 

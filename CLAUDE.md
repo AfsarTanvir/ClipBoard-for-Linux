@@ -227,13 +227,13 @@ an existing table. Any schema change needs a migration path for databases users 
 `~/.config/clipboard-linux/clipboard-linux.conf`, read once in the `Daemon` constructor (the
 app must be restarted after editing). Builds made before the organization name was set read
 `~/.config/Unknown Organization/clipboard-linux.conf` instead, so `lookup()` in `Daemon.cpp`
-tries, first match wins: the new file, the old file, Qt's organization-wide
-`~/.config/clipboard-linux.conf`, then the system-wide files (`/etc/xdg/...`); after that the
-caller's default applies. A key deleted from the new file therefore comes back from the old
-file until that file is deleted. No file is ever moved or rewritten. A value the caller's
-`isValid` check rejects is reported and the next file is tried; `Lookup::rejected` tells the
-caller that an unreadable value existed, so it can pick a safe fallback (`maxItemsSetting()`
-keeps all history, `autoPasteSetting()` turns pasting off). Read new settings through
+tries the new file, the old file, Qt's organization-wide `~/.config/clipboard-linux.conf`,
+then the system-wide files (`/etc/xdg/...`); the first file that has the key decides, and
+without one the caller's default applies. A key deleted from the new file therefore comes back
+from the old file until that file is deleted. No file is ever moved or rewritten. If the
+caller's `isValid` check rejects the deciding value, it is reported, lower files are not used
+(so a typo can't bring back an older value) and `Lookup::rejected` lets the caller pick a safe
+fallback: `maxItemsSetting()` keeps all history, `autoPasteSetting()` turns pasting off. Read new settings through
 `setting()` or `lookup()` too. The path
 depends on the organization and application names set in `setAppInfo()`; changing either moves
 users' settings. `uninstall.sh --purge` deletes this folder, the history folder, the state
@@ -241,16 +241,16 @@ folder and the old `Unknown Organization` settings file (honouring `XDG_CONFIG_H
 `XDG_DATA_HOME`, `XDG_STATE_HOME`; as the XDG spec says, the scripts ignore relative
 values). `install.sh` and `uninstall.sh` also put the autostart entry under `XDG_CONFIG_HOME`.
 Both scripts first run `packaging/stop-daemon.sh`, which asks the daemon to quit over D-Bus
-(or with `--quit` when `gdbus` is missing) and waits for its name to go (falling back to
-`pgrep` when the bus can't be asked), all within about 5 s so a hung daemon can't block.
-Exit 0 = gone (or not running), 1 = still running, 2 = seems to be running but the session bus
-can't be reached to ask it (e.g. over SSH). On 1 or 2 install stops with a message
-instead of starting a daemon that would exit with "already running", and
-`uninstall.sh --purge` refuses before removing anything.
+and waits for its name to go, giving up within about 10 s so a hung daemon can't block. It only uses
+D-Bus: exit 0 = gone (or not running), 1 = still running, 2 = can't tell (no `gdbus`, or no
+session bus, e.g. over SSH). On 1 or 2 install stops with a message, and
+`uninstall.sh --purge` refuses before removing anything. After starting the new daemon,
+`install.sh` checks by PID that it, and not an older instance that was still starting up,
+owns the D-Bus name.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `history/maxItems` | `25` | unpinned items to keep; numbers below 1 mean 1. A value that isn't a number is reported (`Daemon: ignoring invalid …`) and skipped; if no file has a usable value, nothing is pruned until it is fixed |
+| `history/maxItems` | `25` | unpinned items to keep; numbers below 1 mean 1. A value that isn't a number is reported (`Daemon: ignoring invalid …`) and nothing is pruned until it is fixed |
 | `paste/auto` | `true` | `false` = only put the item on the clipboard. Accepts true/false, 1/0, yes/no, on/off; anything else counts as off |
 | `paste/keys` | `ctrl+v` | `ctrl+v`, `ctrl+shift+v` (terminals) or `shift+insert`; anything else falls back to `ctrl+v` |
 
