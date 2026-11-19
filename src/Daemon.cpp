@@ -5,38 +5,56 @@
 #include <QDBusConnectionInterface>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QStringList>
 
 #include <functional>
+#include <limits>
 
 namespace {
 
 constexpr int DefaultMaxItems = 25;
 
-// Reads a setting from ~/.config/clipboard-linux/clipboard-linux.conf.
-// Builds made before the organization name was set read
-// ~/.config/Unknown Organization/clipboard-linux.conf instead, so a key the
-// new file lacks is taken from there: nobody loses settings (or history,
-// through a smaller maxItems) when upgrading. Then come Qt's system-wide
-// system-wide files (/etc/xdg/...), then defaultValue. A value isValid rejects is
-// reported and the next source is tried. Neither file is changed.
-QVariant setting(const QString &key, const QVariant &defaultValue,
-                 const std::function<bool(const QVariant &)> &isValid = {})
+// Where a setting is looked up, first match wins:
+//   ~/.config/clipboard-linux/clipboard-linux.conf      the documented file
+//   ~/.config/Unknown Organization/clipboard-linux.conf what builds made before
+//       the organization name was set read, so upgrading keeps those settings
+//   ~/.config/clipboard-linux.conf                      Qt's organization-wide file
+//   /etc/xdg/clipboard-linux/...                        system-wide files
+// A value isValid rejects is reported and the next file is tried. No file is
+// ever changed.
+struct Lookup
 {
-    QSettings userSettings;
-    userSettings.setFallbacksEnabled(false);
-    const QSettings oldSettings(
+    QVariant value;
+    bool found = false;
+    bool rejected = false; // some file had a value isValid refused
+};
+
+Lookup lookup(const QString &key, const std::function<bool(const QVariant &)> &isValid = {})
+{
+    const QString org = QCoreApplication::organizationName();
+    const QString app = QCoreApplication::applicationName();
+    QSettings userApp(QSettings::UserScope, org, app);
+    userApp.setFallbacksEnabled(false);
+    const QSettings oldFile(
         QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
             + QStringLiteral("/Unknown Organization/clipboard-linux.conf"),
         QSettings::IniFormat);
-    const QSettings systemSettings(QSettings::SystemScope, QCoreApplication::organizationName(),
-                                   QCoreApplication::applicationName());
-    const QSettings *const sources[] = {&userSettings, &oldSettings, &systemSettings};
+    QSettings userOrg(QSettings::UserScope, org);
+    userOrg.setFallbacksEnabled(false);
+    const QSettings system(QSettings::SystemScope, org, app);
+
+    Lookup result;
+    const QSettings *const sources[] = {&userApp, &oldFile, &userOrg, &system};
     for (const QSettings *source : sources) {
         if (!source->contains(key))
             continue;
         const QVariant value = source->value(key);
-        if (!isValid || isValid(value))
-            return value;
+        if (!isValid || isValid(value)) {
+            result.value = value;
+            result.found = true;
+            return result;
+        }
+        result.rejected = true;
         // "10,20" is read as a list, whose toString() is empty.
         const QString shown = value.typeId() == QMetaType::QStringList
             ? value.toStringList().join(QLatin1Char(','))
@@ -44,19 +62,52 @@ QVariant setting(const QString &key, const QVariant &defaultValue,
         qWarning("Daemon: ignoring invalid %s '%s' in %s", qPrintable(key), qPrintable(shown),
                  qPrintable(source->fileName()));
     }
-    return defaultValue;
+    return result;
 }
 
-// history/maxItems must be a number; a typo must not shrink the history, so
-// anything else is skipped. Numbers below 1 mean 1 (HistoryStore clamps).
+QVariant setting(const QString &key, const QVariant &defaultValue)
+{
+    const Lookup result = lookup(key);
+    return result.found ? result.value : defaultValue;
+}
+
+// history/maxItems: numbers below 1 mean 1 (HistoryStore clamps). A typo must
+// never prune the history, so if only unreadable values exist, keep it all.
 int maxItemsSetting()
 {
-    return setting(QStringLiteral("history/maxItems"), DefaultMaxItems, [](const QVariant &value) {
-               bool ok = false;
-               value.toInt(&ok);
-               return ok;
-           })
-        .toInt();
+    const Lookup result = lookup(QStringLiteral("history/maxItems"), [](const QVariant &value) {
+        bool ok = false;
+        value.toInt(&ok);
+        return ok;
+    });
+    if (result.found)
+        return result.value.toInt();
+    if (result.rejected) {
+        qWarning("Daemon: no valid history/maxItems; keeping all history until it is fixed");
+        return std::numeric_limits<int>::max();
+    }
+    return DefaultMaxItems;
+}
+
+// paste/auto: true/false, 1/0, yes/no or on/off. Pasting sends keystrokes to
+// another app, so a value we can't read means off, never on.
+bool autoPasteSetting()
+{
+    static const QStringList on = {QStringLiteral("true"), QStringLiteral("1"),
+                                   QStringLiteral("yes"), QStringLiteral("on")};
+    static const QStringList off = {QStringLiteral("false"), QStringLiteral("0"),
+                                    QStringLiteral("no"), QStringLiteral("off")};
+    const auto text = [](const QVariant &value) { return value.toString().trimmed().toLower(); };
+    const Lookup result = lookup(QStringLiteral("paste/auto"), [&](const QVariant &value) {
+        return on.contains(text(value)) || off.contains(text(value));
+    });
+    if (result.found)
+        return on.contains(text(result.value));
+    if (result.rejected) {
+        qWarning("Daemon: no valid paste/auto; auto-paste is off until it is fixed");
+        return false;
+    }
+    return true;
 }
 
 } // namespace
@@ -67,7 +118,7 @@ Daemon::Daemon(const QString &dbPath, QObject *parent)
     , m_model(&m_store)
     , m_popup(&m_model)
 {
-    m_autoPaste = setting(QStringLiteral("paste/auto"), true).toBool();
+    m_autoPaste = autoPasteSetting();
     m_paster.setKeys(Paster::keysFromString(
         setting(QStringLiteral("paste/keys"), QStringLiteral("ctrl+v")).toString()));
 
