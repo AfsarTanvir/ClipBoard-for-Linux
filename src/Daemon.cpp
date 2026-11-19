@@ -14,19 +14,20 @@ namespace {
 
 constexpr int DefaultMaxItems = 25;
 
-// Where a setting is looked up, first match wins:
+// Where a setting is looked up; the first file that has the key decides:
 //   ~/.config/clipboard-linux/clipboard-linux.conf      the documented file
 //   ~/.config/Unknown Organization/clipboard-linux.conf what builds made before
 //       the organization name was set read, so upgrading keeps those settings
 //   ~/.config/clipboard-linux.conf                      Qt's organization-wide file
 //   /etc/xdg/clipboard-linux/...                        system-wide files
-// A value isValid rejects is reported and the next file is tried. No file is
-// ever changed.
+// If isValid rejects that value it is reported and `rejected` is set, so the
+// caller can pick a safe fallback; lower files are not consulted, so a typo
+// can't bring back an older value. No file is ever changed.
 struct Lookup
 {
     QVariant value;
     bool found = false;
-    bool rejected = false; // some file had a value isValid refused
+    bool rejected = false; // the deciding file's value was refused by isValid
 };
 
 Lookup lookup(const QString &key, const std::function<bool(const QVariant &)> &isValid = {})
@@ -61,6 +62,7 @@ Lookup lookup(const QString &key, const std::function<bool(const QVariant &)> &i
             : value.toString();
         qWarning("Daemon: ignoring invalid %s '%s' in %s", qPrintable(key), qPrintable(shown),
                  qPrintable(source->fileName()));
+        return result;
     }
     return result;
 }
@@ -72,7 +74,7 @@ QVariant setting(const QString &key, const QVariant &defaultValue)
 }
 
 // history/maxItems: numbers below 1 mean 1 (HistoryStore clamps). A typo must
-// never prune the history, so if only unreadable values exist, keep it all.
+// never prune the history, so an unreadable value keeps it all.
 int maxItemsSetting()
 {
     const Lookup result = lookup(QStringLiteral("history/maxItems"), [](const QVariant &value) {
@@ -83,7 +85,7 @@ int maxItemsSetting()
     if (result.found)
         return result.value.toInt();
     if (result.rejected) {
-        qWarning("Daemon: no valid history/maxItems; keeping all history until it is fixed");
+        qWarning("Daemon: keeping all history until history/maxItems is fixed");
         return std::numeric_limits<int>::max();
     }
     return DefaultMaxItems;
@@ -104,7 +106,7 @@ bool autoPasteSetting()
     if (result.found)
         return on.contains(text(result.value));
     if (result.rejected) {
-        qWarning("Daemon: no valid paste/auto; auto-paste is off until it is fixed");
+        qWarning("Daemon: auto-paste is off until paste/auto is fixed");
         return false;
     }
     return true;
