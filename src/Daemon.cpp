@@ -17,7 +17,9 @@ constexpr int DefaultMaxItems = 25;
 // Where a setting is looked up; the first file that has the key decides:
 //   ~/.config/clipboard-linux/clipboard-linux.conf      the documented file
 //   ~/.config/Unknown Organization/clipboard-linux.conf what builds made before
-//       the organization name was set read, so upgrading keeps those settings
+//   ~/.config/Unknown Organization.conf                 the organization name was
+//       set read (their file and Qt's organization-wide one), so upgrading keeps
+//       those settings
 //   ~/.config/clipboard-linux.conf                      Qt's organization-wide file
 //   /etc/xdg/clipboard-linux/...                        system-wide files
 // If isValid rejects that value it is reported and `rejected` is set, so the
@@ -40,12 +42,14 @@ Lookup lookup(const QString &key, const std::function<bool(const QVariant &)> &i
         QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
             + QStringLiteral("/Unknown Organization/clipboard-linux.conf"),
         QSettings::IniFormat);
+    QSettings oldOrg(QSettings::UserScope, QStringLiteral("Unknown Organization"));
+    oldOrg.setFallbacksEnabled(false);
     QSettings userOrg(QSettings::UserScope, org);
     userOrg.setFallbacksEnabled(false);
     const QSettings system(QSettings::SystemScope, org, app);
 
     Lookup result;
-    const QSettings *const sources[] = {&userApp, &oldFile, &userOrg, &system};
+    const QSettings *const sources[] = {&userApp, &oldFile, &oldOrg, &userOrg, &system};
     for (const QSettings *source : sources) {
         if (!source->contains(key))
             continue;
@@ -96,16 +100,25 @@ int maxItemsSetting()
 // another app, so a value we can't read means off, never on.
 bool autoPasteSetting()
 {
-    static const QStringList on = {QStringLiteral("true"), QStringLiteral("1"),
-                                   QStringLiteral("yes"), QStringLiteral("on")};
-    static const QStringList off = {QStringLiteral("false"), QStringLiteral("0"),
-                                    QStringLiteral("no"), QStringLiteral("off")};
-    const auto text = [](const QVariant &value) { return value.toString().trimmed().toLower(); };
-    const Lookup result = lookup(QStringLiteral("paste/auto"), [&](const QVariant &value) {
-        return on.contains(text(value)) || off.contains(text(value));
-    });
+    // 1 = on, 0 = off, -1 = not a word we know.
+    const auto parse = [](const QVariant &value) {
+        const QString text = value.toString().trimmed().toLower();
+        for (const QLatin1String word : {QLatin1String("true"), QLatin1String("1"),
+                                         QLatin1String("yes"), QLatin1String("on")}) {
+            if (text == word)
+                return 1;
+        }
+        for (const QLatin1String word : {QLatin1String("false"), QLatin1String("0"),
+                                         QLatin1String("no"), QLatin1String("off")}) {
+            if (text == word)
+                return 0;
+        }
+        return -1;
+    };
+    const Lookup result = lookup(QStringLiteral("paste/auto"),
+                                 [&](const QVariant &value) { return parse(value) != -1; });
     if (result.found)
-        return on.contains(text(result.value));
+        return parse(result.value) == 1;
     if (result.rejected) {
         qWarning("Daemon: auto-paste is off until paste/auto is fixed");
         return false;
