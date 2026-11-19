@@ -48,8 +48,7 @@ Requires Qt 6.5 or newer (`find_package(Qt6 6.5 …)`). The version string comes
 `project(VERSION …)` in CMakeLists.txt via the `APP_VERSION` define (`--version`).
 
 There is no formatter or linter config; the compiler flags `-Wall -Wextra -Wpedantic` are
-the lint. They are set on the `clipboard-linux` target only, not on `test_history_store`.
-Keep new code warning-free.
+the lint, on both the app and the test target. Keep new code warning-free.
 
 ## Layout
 
@@ -74,18 +73,22 @@ Every new `.h`/`.cpp` must be added to `add_executable(clipboard-linux …)` in
 
 - **Any command-line argument → client mode.** A `QCoreApplication` (no GUI) parses
   `--paste <n>`, `--clear-all`, `--quit` (plus `--help`, `--version`), makes one D-Bus call to
-  the running daemon and exits. Exit codes: `0` ok (also `--help`/`--version`); `1` unknown
-  option (rejected by `QCommandLineParser::process`), daemon not running, call failed, or no
-  such item; `2` only when the daemon is running and `--paste` isn't a number or no action
-  was given (help is printed). The daemon check comes before the usage checks, so with no
-  daemon running even `--paste abc` exits 1.
+  the running daemon and exits. The usage is checked before the daemon is contacted. Exit
+  codes: `0` ok (also `--help`/`--version`); `1` unknown option (rejected by
+  `QCommandLineParser::process`), daemon not running, call failed, or no such item; `2`
+  `--paste` isn't a number, or no action was given (help is printed).
 - **No arguments → daemon mode.** Sets `QT_QPA_PLATFORM=xcb` unless the user already set it,
   creates a `QApplication` with `setQuitOnLastWindowClosed(false)` (hiding the popup must not
   quit), and starts `Daemon` with the database at
   `~/.local/share/clipboard-linux/history.db` (`QStandardPaths::GenericDataLocation`).
-- `setAppInfo()` sets the application name `clipboard-linux` and version; `QSettings` relies
-  on the application name, so it must run before any `QSettings` object is created. No
-  organization name is set (see Settings).
+- `setAppInfo()` sets the organization and application name (both `clipboard-linux`) and the
+  version. `QSettings` builds its path from the two names, so it must run before any
+  `QSettings` object is created. Without the organization name Qt would use
+  "Unknown Organization" and read the wrong file. Earlier builds did exactly that, so daemon
+  mode then calls `migrateOldSettings()`, which moves
+  `~/.config/Unknown Organization/clipboard-linux.conf` to the new path (and removes the old
+  folder if empty) when the new file doesn't exist yet. If both exist it keeps the new one,
+  renames the old file to `clipboard-linux.conf.old` and logs a warning.
 
 ### Data flow
 
@@ -112,9 +115,12 @@ service name, opens the database, reloads the model and exports itself. Private 
 
 **`ClipboardWatcher`** ([src/ClipboardWatcher.cpp](src/ClipboardWatcher.cpp))
 Listens to `QClipboard::dataChanged` for the `Clipboard` mode (not the primary selection) and
-emits `textCopied` when `mime->hasText()`. Pure images are ignored, but copied files usually
-arrive with a `text/plain` path/URI as well, so they are stored as text. It drops copies whose
-`x-kde-passwordManagerHint` MIME data is `secret` (KeePassXC, Bitwarden, KDE). `setText()`
+emits `textCopied` when `mime->hasText()`, so pure images are ignored. It drops copies whose
+`x-kde-passwordManagerHint` MIME data is `secret` (KeePassXC, Bitwarden, KDE), and file copies
+from GNOME Files (`isFileCopy`: URLs plus `x-special/gnome-copied-files`, local or remote,
+because Ctrl+C in Files also offers the paths as text). KDE's `application/x-kde4-urilist` is
+deliberately not used: KIO adds it to copied web links too. A path copied as plain text, or a
+web link, is kept. `setText()`
 remembers the text in `m_ownText` so the next change it causes is not reported; this is what
 keeps pasting an old item from moving it to the top of the history.
 
@@ -220,14 +226,13 @@ an existing table. Any schema change needs a migration path for databases users 
 
 ## Settings
 
-Read once with a default-constructed `QSettings` in the `Daemon` constructor (the app must be
-restarted after editing). The README, the `Daemon.cpp` comment and `uninstall.sh --purge` all
-assume `~/.config/clipboard-linux/clipboard-linux.conf`. **Known bug:** the app never calls
-`QCoreApplication::setOrganizationName`, and with an empty organization Qt substitutes
-"Unknown Organization", so the file actually read is most likely
-`~/.config/Unknown Organization/clipboard-linux.conf`. That conclusion comes from Qt's source;
-it hasn't been confirmed by a run. Setting the organization name to `clipboard-linux` in
-`setAppInfo()` would make the documented path correct.
+`~/.config/clipboard-linux/clipboard-linux.conf`, read once with a default-constructed
+`QSettings` in the `Daemon` constructor (the app must be restarted after editing). The path
+depends on the organization and application names set in `setAppInfo()`; changing either moves
+users' settings. `uninstall.sh --purge` deletes this folder, the history folder, the state
+folder and the old `Unknown Organization` settings file (honouring `XDG_CONFIG_HOME`,
+`XDG_DATA_HOME`, `XDG_STATE_HOME`). `install.sh` and `uninstall.sh` also put the autostart entry
+under `XDG_CONFIG_HOME`.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -249,7 +254,15 @@ Wayland blocks three things a clipboard manager needs:
    [packaging/gnome-shortcuts.py](packaging/gnome-shortcuts.py) registers GNOME custom shortcuts
    (Super+V → `Toggle`, Ctrl+Alt+1…9 → `PasteIndex n`) that call the daemon with `gdbus`. It
    removes Super+V from GNOME's notification list (`toggle-message-tray`) and adds Super+M only
-   if that left the list with no binding. `uninstall` puts Super+V back but leaves Super+M bound.
+   if removing Super+V left the list empty. It records what it changed (`removed <Super>v`,
+   `added <Super>m`) in `~/.local/state/clipboard-linux/notification-shortcut-changes`
+   (`XDG_STATE_HOME`, kept apart from the settings so resetting them doesn't lose it); the file
+   is written even when empty. `uninstall` undoes only the recorded changes, so the user's own
+   bindings stay. Upgrading over an install that predates the record counts as "removed
+   Super+V" (whether it added Super+M is unknown, so Super+M is left alone). With no record at
+   all, uninstall puts Super+V back only if our shortcuts were still installed (so running it
+   twice, or without installing, changes nothing). GNOME's default list is Super+V and Super+M, so on a
+   stock setup install drops Super+V and uninstall puts it back.
    The script keeps the user's own custom shortcuts and is safe to run twice.
 3. **Pasting into another app.** Apps can't send keys to other windows, so `Paster` uses a
    `/dev/uinput` virtual keyboard. Access comes from the udev rule
@@ -277,12 +290,12 @@ of focusing it.
 
 - **Style:** Qt conventions: `m_` member prefix, `QStringLiteral` for string literals,
   `QLatin1String` for comparisons, `#pragma once`, helpers in an anonymous namespace at the top
-  of the `.cpp`, `constexpr` named constants for sizes and timings (prefer them for new code;
-  a few literals remain, e.g. the 150 ms focus retry). 4-space indent, braces on
+  of the `.cpp`, `constexpr` named constants for sizes and timings (prefer them in new code;
+  layout margins and stylesheet pixel values are still literals). 4-space indent, braces on
   their own line for classes and functions.
 - **Comments** explain *why* (platform quirks, ordering constraints), not what the code does.
   Each class header starts with a short comment on its purpose.
-- **Errors:** log with `qWarning(…)` (most classes prefix `"Class: "`) and degrade gracefully (e.g. no uinput → copy
+- **Errors:** log with `qWarning("Class: …")` and degrade gracefully (e.g. no uinput → copy
   only); don't throw.
 - **Ownership:** `Daemon` holds its components by value; widgets are parented to Qt objects.
 - **Commits:** Conventional Commits with a scope: `feat(store): …`, `fix(ui): …`,

@@ -13,6 +13,7 @@ A clipboard history manager for Linux (GNOME on Wayland), modelled on the Window
 - Delete a single item, or clear all unpinned items
 - Duplicate copies are merged and moved to the top
 - Copies marked secret by password managers are never stored
+- Copied files (Ctrl + C in Files) are skipped; only text is kept
 
 ## Setup
 
@@ -27,10 +28,15 @@ sudo apt install build-essential cmake pkg-config qt6-base-dev libqt6sql6-sqlite
 `/dev/uinput` (needed for automatic pasting). It also:
 
 - installs the app to `~/.local/bin/clipboard-linux`
-- starts it at login (`~/.config/autostart/clipboard-linux.desktop`)
+- starts it at login (`~/.config/autostart/clipboard-linux.desktop`, or under `$XDG_CONFIG_HOME` if set)
 - adds the GNOME shortcuts, and moves GNOME's notification list from **Super + V** to **Super + M**
 
-To remove everything: `./uninstall.sh` (add `--purge` to also delete your history).
+To remove everything: `./uninstall.sh` (add `--purge` to also delete your history and settings).
+Uninstalling gives Super + V back to GNOME's notification list and removes Super + M only if
+the installer added it.
+
+Settings that earlier builds read from `~/.config/Unknown Organization/clipboard-linux.conf` are
+moved to the new location the first time the app starts.
 
 ## Usage
 
