@@ -73,28 +73,7 @@ elif ((stopped == 2)); then
     exit 1
 fi
 nohup "$BINARY" >/dev/null 2>&1 &
-pid=$!
 disown
 
-# Wait (up to 10 s) until a daemon owns the D-Bus name or ours has exited,
-# then check ours is still running a moment later. If another instance (e.g.
-# one autostart was still starting) holds the name, or ours failed to open its
-# database, ours exits right away; comparing PIDs is not needed.
-for _ in $(seq 100); do
-    kill -0 "$pid" 2>/dev/null || break
-    if gdbus call --session --timeout 1 --dest org.freedesktop.DBus \
-            --object-path /org/freedesktop/DBus --method org.freedesktop.DBus.NameHasOwner \
-            io.github.afsartanvir.ClipboardLinux 2>/dev/null | grep -q true; then
-        break
-    fi
-    sleep 0.1
-done
-sleep 1
-if ! kill -0 "$pid" 2>/dev/null; then
-    echo "The new version was installed but did not start: another clipboard-linux was"
-    echo "running or starting, or it failed (try running '$BINARY' in a terminal to see why)."
-    echo "Logging out and in starts it."
-    exit 1
-fi
 echo
 echo "Done. Copy some text, then press Super+V."
