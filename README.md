@@ -41,8 +41,10 @@ Uninstalling undoes what the installer changed on GNOME's notification-list shor
 Super + V back if the installer took it, and removes Super + M only if the installer added it.
 
 Earlier builds read their settings from `~/.config/Unknown Organization/clipboard-linux.conf`
-by mistake. That file is still used for any setting missing from the file above, so upgrading
-keeps your settings; move them over and delete it when convenient.
+(and `~/.config/Unknown Organization.conf`) by mistake. Those files are still used for any
+setting missing from the file above, so upgrading keeps your settings; move them over and
+delete them when convenient. If a setting in the file above can't be read, the older files are
+not used for it: `maxItems` then keeps all history and `auto` turns pasting off.
 
 ## Usage
 
@@ -71,7 +73,7 @@ clipboard-linux --quit
 
 ```ini
 [history]
-maxItems=25          ; unpinned items to keep (not a number: all history is kept)
+maxItems=25          ; unpinned items to keep (minimum 1; not a number: all kept)
 
 [paste]
 auto=true            ; false = only copy, you press Ctrl+V yourself
