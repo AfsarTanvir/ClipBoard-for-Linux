@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build clipboard-linux, install it for the current user and set it up:
 #   ~/.local/bin/clipboard-linux        the app
-#   ~/.config/autostart/...desktop      start at login
+#   ~/.config/autostart/...desktop      start at login ($XDG_CONFIG_HOME if set)
 #   /etc/udev/rules.d/...rules          uinput access for auto-paste (asks for sudo)
 #   GNOME shortcuts                     Super+V, Ctrl+Alt+1..9
 set -euo pipefail
@@ -33,9 +33,10 @@ step "Installing to $PREFIX"
 cmake --install build
 
 step "Enabling start at login"
-mkdir -p "$HOME/.config/autostart"
+AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+mkdir -p "$AUTOSTART_DIR"
 sed "s|@BINARY@|$BINARY|" packaging/clipboard-linux.desktop \
-    > "$HOME/.config/autostart/clipboard-linux.desktop"
+    > "$AUTOSTART_DIR/clipboard-linux.desktop"
 
 step "Allowing auto-paste through /dev/uinput"
 if [[ -f "$UDEV_RULE" ]] && cmp -s packaging/60-clipboard-linux-uinput.rules "$UDEV_RULE"; then
