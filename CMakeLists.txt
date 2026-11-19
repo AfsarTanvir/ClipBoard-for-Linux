@@ -69,3 +69,39 @@ install(PROGRAMS packaging/gnome-shortcuts.py
     DESTINATION ${CMAKE_INSTALL_BINDIR}
     RENAME clipboard-linux-shortcuts)
 
+# System-wide files for a .deb package (packaging/build-deb.sh turns this on).
+# install.sh installs per user instead, so it leaves this off.
+option(INSTALL_SYSTEM_FILES "Install udev rule, uinput autoload and system-wide autostart" OFF)
+if(INSTALL_SYSTEM_FILES)
+    set(BINARY ${CMAKE_INSTALL_FULL_BINDIR}/clipboard-linux)
+    configure_file(packaging/clipboard-linux.desktop clipboard-linux.desktop @ONLY)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/clipboard-linux.desktop
+        DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/xdg/autostart)
+    install(FILES packaging/60-clipboard-linux-uinput.rules
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/udev/rules.d)
+    install(FILES packaging/modules-load.conf
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/modules-load.d
+        RENAME clipboard-linux.conf)
+endif()
+
+set(CPACK_PACKAGE_NAME clipboard-linux)
+set(CPACK_PACKAGE_VENDOR "AfsarTanvir")
+set(CPACK_PACKAGE_CONTACT "AfsarTanvir <afsartanvir805@gmail.com>")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Clipboard history for GNOME (Super+V, like Windows)")
+set(CPACK_PACKAGE_DESCRIPTION
+    "Keeps your clipboard history across reboots. Super+V opens the list, Enter or a click
+pastes, Ctrl+Alt+1..9 paste items directly. Items can be pinned, removed or cleared.")
+set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/AfsarTanvir/ClipBoard-for-Linux")
+set(CPACK_DEBIAN_PACKAGE_SECTION utils)
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+# Library dependencies are found automatically; these are needed at run time
+# but not linked: the SQLite plugin, gdbus for the shortcuts, python3 for the
+# shortcut script.
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6sql6-sqlite, libglib2.0-bin, python3")
+set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
+    ${CMAKE_CURRENT_SOURCE_DIR}/packaging/deb/postinst
+    ${CMAKE_CURRENT_SOURCE_DIR}/packaging/deb/prerm
+    ${CMAKE_CURRENT_SOURCE_DIR}/packaging/deb/postrm)
+set(CPACK_DEBIAN_PACKAGE_CONTROL_STRICT_PERMISSION ON)
+include(CPack)

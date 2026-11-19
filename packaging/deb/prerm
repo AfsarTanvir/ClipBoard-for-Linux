@@ -1,0 +1,11 @@
+#!/bin/sh
+# Runs as root before the package is removed or upgraded.
+set -e
+
+if [ "$1" = "remove" ]; then
+    # Match the full command line: a plain process-name match would also hit
+    # this script, whose name is cut to "clipboard-linux" (15 characters).
+    pkill -f '^(/usr/bin/)?clipboard-linux$' 2>/dev/null || true
+fi
+
+exit 0

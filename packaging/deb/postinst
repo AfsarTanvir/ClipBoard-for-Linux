@@ -1,0 +1,24 @@
+#!/bin/sh
+# Runs as root after the package is installed or upgraded.
+set -e
+
+if [ "$1" = "configure" ]; then
+    # Load uinput now (modules-load.d does it on later boots) and apply the
+    # udev rule so the logged-in user can paste without rebooting.
+    modprobe uinput 2>/dev/null || true
+    if command -v udevadm >/dev/null 2>&1; then
+        udevadm control --reload-rules || true
+        udevadm trigger --name-match=uinput || true
+    fi
+
+    cat <<'MSG'
+
+clipboard-linux is installed.
+  Start it now:  run "clipboard-linux &" in a terminal, or log out and back in.
+  Then copy some text and press Super+V.
+  Shortcuts: Super+V opens the history, Ctrl+Alt+1..9 pastes item 1..9.
+
+MSG
+fi
+
+exit 0

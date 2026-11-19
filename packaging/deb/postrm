@@ -1,0 +1,21 @@
+#!/bin/sh
+# Runs as root after the package is removed.
+set -e
+
+if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+    if command -v udevadm >/dev/null 2>&1; then
+        udevadm control --reload-rules || true
+    fi
+
+    cat <<'MSG'
+
+clipboard-linux was removed. Your GNOME shortcuts are per-user settings and
+were left in place. To give Super+V back to GNOME, run as your normal user
+BEFORE removing next time:  clipboard-linux-shortcuts uninstall
+or delete them in Settings > Keyboard > Custom Shortcuts.
+Your history stays in ~/.local/share/clipboard-linux (delete it if unwanted).
+
+MSG
+fi
+
+exit 0
