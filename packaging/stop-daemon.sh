@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Ask a running clipboard-linux to quit, then wait until it is gone.
-# Exit 0: not running (any more). 1: still running after about 5 s.
-# 2: can't tell, because gdbus is missing or the session bus can't be reached
+# Exit 0: not running (any more). 1: still running (gives up after about 8 s).
+# 2: can't tell, because gdbus is missing or the session bus didn't answer
 #    (e.g. over SSH); run from a terminal inside the desktop session instead.
 # install.sh calls this before starting a new version (which would otherwise
 # refuse to start), uninstall.sh before deleting files.
@@ -9,10 +9,10 @@ set -uo pipefail
 
 NAME=io.github.afsartanvir.ClipboardLinux
 
-# 0 = owns its D-Bus name, 1 = doesn't, 2 = can't ask.
+# 0 = owns its D-Bus name, 1 = doesn't, 2 = can't ask. $1 = timeout in seconds.
 on_bus() {
     local owner
-    owner=$(gdbus call --session --timeout 1 --dest org.freedesktop.DBus \
+    owner=$(gdbus call --session --timeout "${1:-1}" --dest org.freedesktop.DBus \
         --object-path /org/freedesktop/DBus --method org.freedesktop.DBus.NameHasOwner \
         "$NAME" 2>/dev/null) || return 2
     [[ $owner == *true* ]] && return 0
@@ -23,10 +23,11 @@ if ! command -v gdbus >/dev/null; then
     echo "gdbus is missing (package libglib2.0-bin), so the running app can't be checked." >&2
     exit 2
 fi
-on_bus
+on_bus 3
 state=$?
 if ((state == 2)); then
-    echo "Cannot reach your desktop session's D-Bus; run this from a terminal inside the session." >&2
+    echo "Your desktop session's D-Bus didn't answer (no session here, or it is busy); run this" >&2
+    echo "from a terminal inside the desktop session." >&2
     exit 2
 fi
 ((state == 1)) && exit 0

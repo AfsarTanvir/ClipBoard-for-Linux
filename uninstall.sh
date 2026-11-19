@@ -39,6 +39,7 @@ fi
 
 if [[ "${1:-}" == "--purge" ]]; then
     rm -rf "$DATA_HOME/clipboard-linux" "$CONFIG_HOME/clipboard-linux" "$STATE_HOME/clipboard-linux"
+    rm -f "$CONFIG_HOME/clipboard-linux.conf" # Qt's organization-wide settings file
     # Where earlier builds read their settings from.
     rm -f "$CONFIG_HOME/Unknown Organization/clipboard-linux.conf"
     rmdir "$CONFIG_HOME/Unknown Organization" 2>/dev/null
