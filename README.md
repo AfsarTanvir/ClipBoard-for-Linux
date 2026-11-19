@@ -73,7 +73,7 @@ clipboard-linux --quit
 
 ```ini
 [history]
-maxItems=25          ; unpinned items to keep (minimum 1; not a number: all kept)
+maxItems=100         ; unpinned items to keep (minimum 1; not a number: all kept)
 
 [paste]
 auto=true            ; false = only copy, you press Ctrl+V yourself

@@ -252,7 +252,7 @@ running, so the scripts can race it.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `history/maxItems` | `25` | unpinned items to keep; numbers below 1 mean 1. A value that isn't a number is reported (`Daemon: ignoring invalid …`) and nothing is pruned until it is fixed |
+| `history/maxItems` | `100` | unpinned items to keep; numbers below 1 mean 1. A value that isn't a number is reported (`Daemon: ignoring invalid …`) and nothing is pruned until it is fixed |
 | `paste/auto` | `true` | `false` = only put the item on the clipboard. Accepts true/false, 1/0, yes/no, on/off; anything else counts as off |
 | `paste/keys` | `ctrl+v` | `ctrl+v`, `ctrl+shift+v` (terminals) or `shift+insert`; anything else falls back to `ctrl+v` |
 

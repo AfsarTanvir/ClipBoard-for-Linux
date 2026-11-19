@@ -12,7 +12,7 @@
 
 namespace {
 
-constexpr int DefaultMaxItems = 25;
+constexpr int DefaultMaxItems = 100;
 
 // Where a setting is looked up; the first file that has the key decides:
 //   ~/.config/clipboard-linux/clipboard-linux.conf      the documented file
