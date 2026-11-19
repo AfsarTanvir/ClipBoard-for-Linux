@@ -36,10 +36,9 @@ To remove everything: `./uninstall.sh` (add `--purge` to also delete your histor
 Uninstalling gives Super + V back to GNOME's notification list and removes Super + M only if
 the installer added it.
 
-Settings that earlier builds read from `~/.config/Unknown Organization/clipboard-linux.conf` are
-moved to the new location the first time the app starts. If you already have a file at the new
-location, the old values (the ones that were in effect) are written into it, your previous
-version is kept as `clipboard-linux.conf.bak`, and the old file is renamed to `.old`.
+Earlier builds read their settings from `~/.config/Unknown Organization/clipboard-linux.conf`
+by mistake. That file is still used for any setting missing from the file above, so upgrading
+keeps your settings; move them over and delete it when convenient.
 
 ## Usage
 

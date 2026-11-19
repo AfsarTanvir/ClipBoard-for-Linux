@@ -84,13 +84,8 @@ Every new `.h`/`.cpp` must be added to `add_executable(clipboard-linux …)` in
 - `setAppInfo()` sets the organization and application name (both `clipboard-linux`) and the
   version. `QSettings` builds its path from the two names, so it must run before any
   `QSettings` object is created. Without the organization name Qt would use
-  "Unknown Organization" and read the wrong file. Earlier builds did exactly that, so daemon
-  mode then calls `migrateOldSettings()`, which moves
-  `~/.config/Unknown Organization/clipboard-linux.conf` to the new path (and removes the old
-  folder if empty) when the new file doesn't exist yet. If both exist, the old file was the one in effect, so
-  the new file is backed up to `.bak`, the old values are written over it (keys only in the new
-  file stay; QSettings drops comments) and the old file is renamed to `.old`, or deleted if it
-  can't be, so it is never merged twice.
+  "Unknown Organization" and read the wrong file. Earlier builds did exactly that (see
+  Settings for how the old file is still honoured).
 
 ### Data flow
 
@@ -228,8 +223,12 @@ an existing table. Any schema change needs a migration path for databases users 
 
 ## Settings
 
-`~/.config/clipboard-linux/clipboard-linux.conf`, read once with a default-constructed
-`QSettings` in the `Daemon` constructor (the app must be restarted after editing). The path
+`~/.config/clipboard-linux/clipboard-linux.conf`, read once through the `setting()` helper in
+the `Daemon` constructor (the app must be restarted after editing). Builds made before the
+organization name was set read `~/.config/Unknown Organization/clipboard-linux.conf` instead,
+so `setting()` takes any key the new file lacks from that old file; when both have a key, the
+new (documented) file wins. Neither file is ever moved or rewritten. Read new settings through
+`setting()` too. The path
 depends on the organization and application names set in `setAppInfo()`; changing either moves
 users' settings. `uninstall.sh --purge` deletes this folder, the history folder, the state
 folder and the old `Unknown Organization` settings file (honouring `XDG_CONFIG_HOME`,
@@ -299,8 +298,7 @@ of focusing it.
   their own line for classes and functions.
 - **Comments** explain *why* (platform quirks, ordering constraints), not what the code does.
   Each class header starts with a short comment on its purpose.
-- **Errors:** log with `qWarning("Class: …")` (free functions use their area, e.g.
-  `"Settings: "` in `main.cpp`) and degrade gracefully (e.g. no uinput → copy
+- **Errors:** log with `qWarning("Class: …")` and degrade gracefully (e.g. no uinput → copy
   only); don't throw.
 - **Ownership:** `Daemon` holds its components by value; widgets are parented to Qt objects.
 - **Commits:** Conventional Commits with a scope: `feat(store): …`, `fix(ui): …`,
