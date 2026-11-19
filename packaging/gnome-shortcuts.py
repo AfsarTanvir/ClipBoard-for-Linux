@@ -2,7 +2,8 @@
 """Add or remove the GNOME keyboard shortcuts for clipboard-linux.
 
     gnome-shortcuts.py install     Super+V and Ctrl+Alt+1..9
-    gnome-shortcuts.py uninstall   remove them and give Super+V back to GNOME
+    gnome-shortcuts.py uninstall   remove them and undo what install changed on
+                                   GNOME's notification-list shortcut
 
 GNOME on Wayland does not let apps grab global shortcuts, so we register
 "custom shortcuts" (the same as Settings > Keyboard > Custom Shortcuts)

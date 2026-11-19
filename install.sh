@@ -72,7 +72,11 @@ if "$BINARY" --quit >/dev/null 2>&1; then
         fi
         sleep 0.1
     done
-    $released || echo "Warning: the old clipboard-linux has not quit yet; the new one may not start."
+    if ! $released; then
+        echo "The running clipboard-linux did not quit within 5 seconds, so the new version"
+        echo "was not started. Run '$BINARY --quit', then start '$BINARY' (or log in again)."
+        exit 1
+    fi
 fi
 nohup "$BINARY" >/dev/null 2>&1 &
 disown
