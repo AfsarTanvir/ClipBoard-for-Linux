@@ -226,8 +226,9 @@ an existing table. Any schema change needs a migration path for databases users 
 `~/.config/clipboard-linux/clipboard-linux.conf`, read once through the `setting()` helper in
 the `Daemon` constructor (the app must be restarted after editing). Builds made before the
 organization name was set read `~/.config/Unknown Organization/clipboard-linux.conf` instead,
-so `setting()` takes any key the new file lacks from that old file; when both have a key, the
-new (documented) file wins. Neither file is ever moved or rewritten. Read new settings through
+so `setting()` looks a key up in the user's new file, then the old file, then Qt's fallbacks
+(e.g. `/etc/xdg/clipboard-linux/clipboard-linux.conf`), then the built-in default. A key deleted
+from the new file therefore comes back from the old file until that file is deleted. Neither file is ever moved or rewritten. Read new settings through
 `setting()` too. The path
 depends on the organization and application names set in `setAppInfo()`; changing either moves
 users' settings. `uninstall.sh --purge` deletes this folder, the history folder, the state

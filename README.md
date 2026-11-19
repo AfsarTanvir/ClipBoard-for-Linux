@@ -33,8 +33,8 @@ sudo apt install build-essential cmake pkg-config qt6-base-dev libqt6sql6-sqlite
   **Super + M** if no other shortcut is left; GNOME's default already has Super + M)
 
 To remove everything: `./uninstall.sh` (add `--purge` to also delete your history and settings).
-Uninstalling gives Super + V back to GNOME's notification list and removes Super + M only if
-the installer added it.
+Uninstalling undoes what the installer changed on GNOME's notification-list shortcut: it gives
+Super + V back if the installer took it, and removes Super + M only if the installer added it.
 
 Earlier builds read their settings from `~/.config/Unknown Organization/clipboard-linux.conf`
 by mistake. That file is still used for any setting missing from the file above, so upgrading
