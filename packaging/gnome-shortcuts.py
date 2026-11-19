@@ -27,7 +27,7 @@ MESSAGE_TRAY = "toggle-message-tray"  # GNOME binds Super+V to the notification 
 # bindings. Kept in the state folder, apart from the settings, so resetting
 # the settings does not lose it.
 def xdg_dir(variable, default):
-    """An XDG base folder; relative values are ignored, as the XDG spec and Qt do."""
+    """An XDG base folder; relative values are ignored, as the XDG spec requires."""
     value = os.environ.get(variable, "")
     return value if os.path.isabs(value) else os.path.expanduser(default)
 

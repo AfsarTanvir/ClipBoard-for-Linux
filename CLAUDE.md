@@ -230,21 +230,23 @@ organization name was set read `~/.config/Unknown Organization/clipboard-linux.c
 so `setting()` looks a key up in the user's new file, then the old file, then Qt's fallbacks
 (e.g. `/etc/xdg/clipboard-linux/clipboard-linux.conf`), then the built-in default. A key deleted
 from the new file therefore comes back from the old file until that file is deleted. Neither file is ever moved or rewritten. Read new settings through
-`setting()` too. The path
+`setting()` too; its optional `isValid` check makes a bad value fall through to the next
+source instead of being used. The path
 depends on the organization and application names set in `setAppInfo()`; changing either moves
 users' settings. `uninstall.sh --purge` deletes this folder, the history folder, the state
 folder and the old `Unknown Organization` settings file (honouring `XDG_CONFIG_HOME`,
-`XDG_DATA_HOME`, `XDG_STATE_HOME`; like Qt and the XDG spec, the scripts ignore relative
+`XDG_DATA_HOME`, `XDG_STATE_HOME`; as the XDG spec says, the scripts ignore relative
 values). `install.sh` and `uninstall.sh` also put the autostart entry under `XDG_CONFIG_HOME`.
 Both scripts first run `packaging/stop-daemon.sh`, which asks the daemon to quit over D-Bus
-(5 s timeout, or `--quit` when `gdbus` is missing) and waits up to 5 s for its name to go
-(falling back to `pgrep`). If it is still running, install stops with a message instead of
-starting a new daemon that would exit with "already running", and `uninstall.sh --purge`
-refuses to delete the history.
+(or with `--quit` when `gdbus` is missing) and waits for its name to go (falling back to
+`pgrep`), all within about 5 s so a hung daemon can't block. Exit 0 = gone, 1 = still running,
+2 = the session bus can't be reached (e.g. over SSH). On 1 or 2 install stops with a message
+instead of starting a daemon that would exit with "already running", and
+`uninstall.sh --purge` refuses before removing anything.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `history/maxItems` | `25` | unpinned items to keep; anything that isn't a whole number of 1 or more is reported (`Daemon: invalid history/maxItems`) and replaced by 25, so a typo can't prune the history |
+| `history/maxItems` | `25` | unpinned items to keep; numbers below 1 mean 1. A value that isn't a number is reported (`Daemon: ignoring invalid …`) and skipped, so the next source (old file, system file, 25) applies and a typo can't prune the history |
 | `paste/auto` | `true` | `false` = only put the item on the clipboard |
 | `paste/keys` | `ctrl+v` | `ctrl+v`, `ctrl+shift+v` (terminals) or `shift+insert`; anything else falls back to `ctrl+v` |
 
