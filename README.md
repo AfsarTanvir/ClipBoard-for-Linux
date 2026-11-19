@@ -33,7 +33,7 @@ sudo apt install build-essential cmake pkg-config qt6-base-dev libqt6sql6-sqlite
   **Super + M** if no other shortcut is left; GNOME's default already has Super + M)
 
 To remove everything: `./uninstall.sh` (add `--purge` to also delete your history and settings).
-Both scripts stop the running app first. If it doesn't quit within a few seconds, `install.sh`
+Both scripts stop the running app first. If it doesn't quit within about 8 seconds, `install.sh`
 stops and asks you to log out and in (or end it) and run it again, and `--purge` removes
 nothing until the app is gone. Run them from a terminal inside your desktop session (they
 need `gdbus`, which GNOME includes).

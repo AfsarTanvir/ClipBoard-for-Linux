@@ -237,16 +237,17 @@ fallback: `maxItemsSetting()` keeps all history, `autoPasteSetting()` turns past
 `setting()` or `lookup()` too. The path
 depends on the organization and application names set in `setAppInfo()`; changing either moves
 users' settings. `uninstall.sh --purge` deletes this folder, the history folder, the state
-folder and the old `Unknown Organization` settings file (honouring `XDG_CONFIG_HOME`,
+folder, `~/.config/clipboard-linux.conf` and the old `Unknown Organization` settings file (honouring `XDG_CONFIG_HOME`,
 `XDG_DATA_HOME`, `XDG_STATE_HOME`; as the XDG spec says, the scripts ignore relative
 values). `install.sh` and `uninstall.sh` also put the autostart entry under `XDG_CONFIG_HOME`.
 Both scripts first run `packaging/stop-daemon.sh`, which asks the daemon to quit over D-Bus
-and waits for its name to go, giving up within about 10 s so a hung daemon can't block. It only uses
+and waits for its name to go, giving up after about 8 s so a hung daemon can't block. It only uses
 D-Bus: exit 0 = gone (or not running), 1 = still running, 2 = can't tell (no `gdbus`, or no
 session bus, e.g. over SSH). On 1 or 2 install stops with a message, and
 `uninstall.sh --purge` refuses before removing anything. After starting the new daemon,
-`install.sh` checks by PID that it, and not an older instance that was still starting up,
-owns the D-Bus name.
+`install.sh` waits (up to 10 s) for the D-Bus name to be owned and then checks the new process
+is still alive; if another instance (e.g. one autostart was still starting) holds the name, or
+the database couldn't be opened, the new one exits and install reports it.
 
 | Key | Default | Meaning |
 |---|---|---|
