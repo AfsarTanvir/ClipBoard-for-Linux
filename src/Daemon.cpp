@@ -65,6 +65,8 @@ void Daemon::Show()
 
 bool Daemon::PasteIndex(int number)
 {
+    if (number < 1)
+        return false;
     const ClipItem *item = m_model.itemAt(number - 1);
     if (!item)
         return false;
