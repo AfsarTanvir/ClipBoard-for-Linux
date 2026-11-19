@@ -33,7 +33,12 @@ step "Installing to $PREFIX"
 cmake --install build
 
 step "Enabling start at login"
-AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+# XDG variables only count when absolute (XDG spec; Qt ignores relative ones too).
+CONFIG_HOME=$HOME/.config
+if [[ ${XDG_CONFIG_HOME:-} == /* ]]; then
+    CONFIG_HOME=$XDG_CONFIG_HOME
+fi
+AUTOSTART_DIR="$CONFIG_HOME/autostart"
 mkdir -p "$AUTOSTART_DIR"
 sed "s|@BINARY@|$BINARY|" packaging/clipboard-linux.desktop \
     > "$AUTOSTART_DIR/clipboard-linux.desktop"
@@ -54,29 +59,12 @@ step "Adding GNOME keyboard shortcuts"
 python3 packaging/gnome-shortcuts.py install
 
 step "Starting clipboard-linux"
-# Restart it if an older version is already running, and wait (up to 5 s)
-# until it has released its D-Bus name, or the new one would refuse to start.
-if "$BINARY" --quit >/dev/null 2>&1; then
-    released=false
-    for _ in $(seq 50); do
-        if ! owner=$(gdbus call --session --dest org.freedesktop.DBus \
-                --object-path /org/freedesktop/DBus --method org.freedesktop.DBus.NameHasOwner \
-                io.github.afsartanvir.ClipboardLinux 2>/dev/null); then
-            sleep 1 # cannot ask (no gdbus?): give it a moment instead
-            released=true
-            break
-        fi
-        if [[ $owner != *true* ]]; then
-            released=true
-            break
-        fi
-        sleep 0.1
-    done
-    if ! $released; then
-        echo "The running clipboard-linux did not quit within 5 seconds, so the new version"
-        echo "was not started. Run '$BINARY --quit', then start '$BINARY' (or log in again)."
-        exit 1
-    fi
+# Stop an older version first: while it holds the D-Bus name the new one
+# refuses to start.
+if ! bash packaging/stop-daemon.sh "$BINARY"; then
+    echo "clipboard-linux is still running (it did not quit within 5 seconds), so the new"
+    echo "version was not started. Quit it (or log out and in), then run ./install.sh again."
+    exit 1
 fi
 nohup "$BINARY" >/dev/null 2>&1 &
 disown
