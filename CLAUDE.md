@@ -76,7 +76,7 @@ Every new `.h`/`.cpp` must be added to `add_executable(clipboard-linux …)` in
   the running daemon and exits. The usage is checked before the daemon is contacted. Exit
   codes: `0` ok (also `--help`/`--version`); `1` unknown option (rejected by
   `QCommandLineParser::process`), daemon not running, call failed, or no such item; `2`
-  `--paste` isn't a number, or no action was given (help is printed).
+  `--paste` isn't a number of 1 or more, or no action was given (help is printed).
 - **No arguments → daemon mode.** Sets `QT_QPA_PLATFORM=xcb` unless the user already set it,
   creates a `QApplication` with `setQuitOnLastWindowClosed(false)` (hiding the popup must not
   quit), and starts `Daemon` with the database at
@@ -87,8 +87,9 @@ Every new `.h`/`.cpp` must be added to `add_executable(clipboard-linux …)` in
   "Unknown Organization" and read the wrong file. Earlier builds did exactly that, so daemon
   mode then calls `migrateOldSettings()`, which moves
   `~/.config/Unknown Organization/clipboard-linux.conf` to the new path (and removes the old
-  folder if empty) when the new file doesn't exist yet. If both exist it keeps the new one,
-  renames the old file to `clipboard-linux.conf.old` and logs a warning.
+  folder if empty) when the new file doesn't exist yet. If both exist, the old file was the one in effect, so
+  its values are written over the new file's (keys only in the new file stay) and the old file
+  is renamed to `clipboard-linux.conf.old`.
 
 ### Data flow
 
@@ -258,8 +259,10 @@ Wayland blocks three things a clipboard manager needs:
    `added <Super>m`) in `~/.local/state/clipboard-linux/notification-shortcut-changes`
    (`XDG_STATE_HOME`, kept apart from the settings so resetting them doesn't lose it); the file
    is written even when empty. `uninstall` undoes only the recorded changes, so the user's own
-   bindings stay. Upgrading over an install that predates the record counts as "removed
-   Super+V" (whether it added Super+M is unknown, so Super+M is left alone). With no record at
+   bindings stay. Upgrading over an install that predates the record, when the list is exactly
+   Super+M (what that version left on GNOME's default), counts as "removed Super+V" (whether it
+   added Super+M is unknown, so Super+M is left alone). If the record can't be read or written
+   the script warns and carries on. With no record at
    all, uninstall puts Super+V back only if our shortcuts were still installed (so running it
    twice, or without installing, changes nothing). GNOME's default list is Super+V and Super+M, so on a
    stock setup install drops Super+V and uninstall puts it back.

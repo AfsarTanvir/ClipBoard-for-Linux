@@ -29,7 +29,8 @@ sudo apt install build-essential cmake pkg-config qt6-base-dev libqt6sql6-sqlite
 
 - installs the app to `~/.local/bin/clipboard-linux`
 - starts it at login (`~/.config/autostart/clipboard-linux.desktop`, or under `$XDG_CONFIG_HOME` if set)
-- adds the GNOME shortcuts, and moves GNOME's notification list from **Super + V** to **Super + M**
+- adds the GNOME shortcuts, and takes **Super + V** away from GNOME's notification list (it gets
+  **Super + M** if no other shortcut is left; GNOME's default already has Super + M)
 
 To remove everything: `./uninstall.sh` (add `--purge` to also delete your history and settings).
 Uninstalling gives Super + V back to GNOME's notification list and removes Super + M only if
