@@ -227,7 +227,8 @@ an existing table. Any schema change needs a migration path for databases users 
 `~/.config/clipboard-linux/clipboard-linux.conf`, read once in the `Daemon` constructor (the
 app must be restarted after editing). Builds made before the organization name was set read
 `~/.config/Unknown Organization/clipboard-linux.conf` instead, so `lookup()` in `Daemon.cpp`
-tries the new file, the old file, Qt's organization-wide `~/.config/clipboard-linux.conf`,
+tries the new file, the old file (and the old organization-wide
+`~/.config/Unknown Organization.conf`), Qt's organization-wide `~/.config/clipboard-linux.conf`,
 then the system-wide files (`/etc/xdg/...`); the first file that has the key decides, and
 without one the caller's default applies. A key deleted from the new file therefore comes back
 from the old file until that file is deleted. No file is ever moved or rewritten. If the
@@ -237,17 +238,17 @@ fallback: `maxItemsSetting()` keeps all history, `autoPasteSetting()` turns past
 `setting()` or `lookup()` too. The path
 depends on the organization and application names set in `setAppInfo()`; changing either moves
 users' settings. `uninstall.sh --purge` deletes this folder, the history folder, the state
-folder, `~/.config/clipboard-linux.conf` and the old `Unknown Organization` settings file (honouring `XDG_CONFIG_HOME`,
+folder, `~/.config/clipboard-linux.conf` and the old `Unknown Organization` settings files (honouring `XDG_CONFIG_HOME`,
 `XDG_DATA_HOME`, `XDG_STATE_HOME`; as the XDG spec says, the scripts ignore relative
 values). `install.sh` and `uninstall.sh` also put the autostart entry under `XDG_CONFIG_HOME`.
 Both scripts first run `packaging/stop-daemon.sh`, which asks the daemon to quit over D-Bus
-and waits for its name to go, giving up after about 8 s so a hung daemon can't block. It only uses
-D-Bus: exit 0 = gone (or not running), 1 = still running, 2 = can't tell (no `gdbus`, or no
+and waits for its name to go, resending Quit (a daemon still starting up owns its name before
+it takes commands) and giving up after about 10 s so a hung daemon or bus can't block. It only
+uses D-Bus: exit 0 = gone (or not running), 1 = still running, 2 = can't tell (no `gdbus`, or no
 session bus, e.g. over SSH). On 1 or 2 install stops with a message, and
-`uninstall.sh --purge` refuses before removing anything. After starting the new daemon,
-`install.sh` waits (up to 10 s) for the D-Bus name to be owned and then checks the new process
-is still alive; if another instance (e.g. one autostart was still starting) holds the name, or
-the database couldn't be opened, the new one exits and install reports it.
+`uninstall.sh --purge` refuses before removing anything. Known limit: right after login a
+daemon that autostart has launched but that hasn't claimed its D-Bus name yet counts as not
+running, so the scripts can race it.
 
 | Key | Default | Meaning |
 |---|---|---|
