@@ -15,7 +15,45 @@ A clipboard history manager for Linux (GNOME on Wayland), modelled on the Window
 - Copies marked secret by password managers are never stored
 - Copied files (Ctrl + C in Files) are skipped; only text is kept
 
-## Setup
+## Install (Ubuntu)
+
+For Ubuntu **24.04** or **26.04** with the GNOME desktop.
+
+1. Download the `.deb` for your Ubuntu version from the
+   [**latest release**](https://github.com/AfsarTanvir/ClipBoard-for-Linux/releases/latest).
+   Not sure which version you have? Run `lsb_release -r`.
+
+   | Your Ubuntu | File |
+   |---|---|
+   | 24.04 | `clipboard-linux_<version>_ubuntu24.04_amd64.deb` |
+   | 26.04 | `clipboard-linux_<version>_ubuntu26.04_amd64.deb` |
+
+2. Install it from the folder you downloaded it to (keep the `./`):
+
+   ```bash
+   cd ~/Downloads
+   sudo apt install ./clipboard-linux_*_ubuntu24.04_amd64.deb
+   ```
+
+That's all. The app starts right away and starts again automatically every time you log in,
+including after a restart or shutdown. Copy some text and press **Super + V**.
+
+It runs in the background with no window. The first time it runs, it adds the
+keyboard shortcuts (**Super + V**, **Ctrl + Alt + 1 … 9**) and moves GNOME's notification list
+from Super + V to **Super + M**.
+
+**Update:** install the newer `.deb` the same way; the running app is restarted on the new version.
+
+**Uninstall:**
+
+```bash
+clipboard-linux-shortcuts uninstall     # give Super+V back to GNOME (run as yourself, not sudo)
+sudo apt remove clipboard-linux
+```
+
+Your history stays in `~/.local/share/clipboard-linux`; delete that folder to remove it too.
+
+## Build from source
 
 Tested target: Ubuntu 26.04, GNOME 50, Wayland.
 
@@ -98,6 +136,14 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 ./build/clipboard-linux
+```
+
+Build the `.deb` packages (needs Docker; one per Ubuntu release, written to `dist/`):
+
+```bash
+packaging/build-deb-docker.sh            # Ubuntu 24.04 and 26.04
+packaging/build-deb-docker.sh 24.04      # one release
+packaging/build-deb.sh                   # only for the Ubuntu you're running (needs dpkg-dev)
 ```
 
 Tech stack: C++20 · Qt 6 (Widgets, SQL, D-Bus) · SQLite · libxcb · Linux uinput

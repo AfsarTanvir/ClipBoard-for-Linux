@@ -44,8 +44,18 @@ Only one daemon can run at a time (see "Single instance" below). If an installed
 already running (autostart, `~/.local/bin`, or a system package), stop it with
 `clipboard-linux --quit` before starting a build from `./build/`.
 
-Requires Qt 6.5 or newer (`find_package(Qt6 6.5 …)`). The version string comes from
+Requires Qt 6.4 or newer (`find_package(Qt6 6.4 …)`; Ubuntu 24.04 ships 6.4). The version string comes from
 `project(VERSION …)` in CMakeLists.txt via the `APP_VERSION` define (`--version`).
+
+Build the `.deb` packages (Docker, one per Ubuntu release, output in `dist/`):
+
+```bash
+packaging/build-deb-docker.sh          # Ubuntu 24.04 and 26.04
+packaging/build-deb.sh                 # just the running release (needs dpkg-dev)
+```
+
+Bump `project(VERSION …)` before building a release: `apt` skips a package whose version is
+already installed.
 
 There is no formatter or linter config; the compiler flags `-Wall -Wextra -Wpedantic` are
 the lint, on both the app and the test target. Keep new code warning-free.
@@ -57,8 +67,12 @@ CMakeLists.txt            app target, test target, install rule
 include/                  all headers (one class per file)
 src/                      matching .cpp files + main.cpp
 tests/                    QtTest unit tests (HistoryStore only)
-packaging/                udev rule, autostart .desktop, GNOME shortcut installer (Python),
-                          stop-daemon.sh (quit a running daemon and wait, used by both scripts)
+packaging/                udev rule, autostart .desktop, GNOME shortcut installer (Python,
+                          installed as clipboard-linux-shortcuts), stop-daemon.sh (quit a
+                          running daemon and wait, used by both scripts)
+packaging/deb/            .deb maintainer scripts: postinst starts the app in every logged-in
+                          desktop session (systemd-run --user), prerm stops it on removal
+packaging/build-deb*.sh   build the .deb with CPack (INSTALL_SYSTEM_FILES=ON, prefix /usr)
 install.sh / uninstall.sh per-user install into ~/.local, uses sudo for the udev rule
 doc/                      local notes, gitignored, never committed
 ```
@@ -198,7 +212,11 @@ PascalCase by D-Bus convention:
 The same names are hard-coded in the `DBUS_CALL` string of
 [packaging/gnome-shortcuts.py](packaging/gnome-shortcuts.py) and in the client code in
 `main.cpp`. Renaming a method or the service breaks the installed GNOME shortcuts, so change
-them together (users must re-run `install.sh`).
+them together (users must re-run `install.sh`, or `clipboard-linux-shortcuts install`).
+
+On start, the daemon runs `clipboard-linux-shortcuts install` (next to its binary, GNOME only)
+when `~/.local/state/clipboard-linux/notification-shortcut-changes` is missing: that file is
+written by every shortcut install, so a .deb user gets the shortcuts without a setup step.
 
 **Single instance:** `Daemon::start()` claims the service name before opening the database;
 if the name is taken, it logs "already running" and `main` exits with 1.
