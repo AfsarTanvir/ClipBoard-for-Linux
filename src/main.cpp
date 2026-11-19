@@ -9,6 +9,7 @@
 #include <QFileInfo>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QStringList>
 
 #include <cstdio>
 
@@ -25,8 +26,8 @@ void setAppInfo()
 }
 
 // Versions before the organization name was set read their settings from
-// ~/.config/Unknown Organization/clipboard-linux.conf. Move that file to the
-// new location, so nobody loses settings (and history, through a smaller
+// ~/.config/Unknown Organization/clipboard-linux.conf. Move them to the new
+// location, so nobody loses settings (and history, through a smaller
 // maxItems) when upgrading. Moving, not copying, makes this happen only once.
 void migrateOldSettings()
 {
@@ -36,14 +37,36 @@ void migrateOldSettings()
     const QString oldPath = oldDir + QStringLiteral("/clipboard-linux.conf");
     if (!QFile::exists(oldPath))
         return;
+
     if (QFile::exists(newPath)) {
-        // Keep the new file; set the old one aside so this happens only once.
-        QFile::remove(oldPath + QStringLiteral(".old"));
-        QFile::rename(oldPath, oldPath + QStringLiteral(".old"));
-        qWarning("clipboard-linux: ignored old settings %s (renamed to .old), using %s",
-                 qPrintable(oldPath), qPrintable(newPath));
+        // The new file was never read, the old one was in effect: copy the
+        // old values over it so nothing the user relied on changes, then set
+        // the old file aside.
+        {
+            const QSettings oldSettings(oldPath, QSettings::IniFormat);
+            QSettings settings;
+            const QStringList keys = oldSettings.allKeys();
+            for (const QString &key : keys)
+                settings.setValue(key, oldSettings.value(key));
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning("clipboard-linux: cannot merge old settings %s into %s",
+                         qPrintable(oldPath), qPrintable(newPath));
+                return;
+            }
+        }
+        const QString backup = oldPath + QStringLiteral(".old");
+        if (!QFile::rename(oldPath, backup)
+            && !(QFile::remove(backup) && QFile::rename(oldPath, backup))) {
+            qWarning("clipboard-linux: merged old settings %s but cannot rename it to %s",
+                     qPrintable(oldPath), qPrintable(backup));
+            return;
+        }
+        qInfo("clipboard-linux: merged old settings %s into %s (old file renamed to .old)",
+              qPrintable(oldPath), qPrintable(newPath));
         return;
     }
+
     QDir().mkpath(QFileInfo(newPath).absolutePath());
     if (!QFile::rename(oldPath, newPath)) {
         qWarning("clipboard-linux: cannot move old settings from %s to %s", qPrintable(oldPath),
@@ -77,8 +100,8 @@ int runClient()
     if (parser.isSet(pasteOption)) {
         bool ok = false;
         number = parser.value(pasteOption).toInt(&ok);
-        if (!ok) {
-            std::fprintf(stderr, "--paste needs a number.\n");
+        if (!ok || number < 1) {
+            std::fprintf(stderr, "--paste needs a number of 1 or more.\n");
             return 2;
         }
     } else if (!parser.isSet(clearAllOption) && !parser.isSet(quitOption)) {
