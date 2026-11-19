@@ -26,8 +26,13 @@ MESSAGE_TRAY = "toggle-message-tray"  # GNOME binds Super+V to the notification 
 # "added <Super>m"), so uninstall undoes only that and keeps the user's own
 # bindings. Kept in the state folder, apart from the settings, so resetting
 # the settings does not lose it.
-STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
-                         "clipboard-linux")
+def xdg_dir(variable, default):
+    """An XDG base folder; relative values are ignored, as the XDG spec and Qt do."""
+    value = os.environ.get(variable, "")
+    return value if os.path.isabs(value) else os.path.expanduser(default)
+
+
+STATE_DIR = os.path.join(xdg_dir("XDG_STATE_HOME", "~/.local/state"), "clipboard-linux")
 TRAY_MARKER = os.path.join(STATE_DIR, "notification-shortcut-changes")
 
 DBUS_CALL = ("gdbus call --session --dest io.github.afsartanvir.ClipboardLinux "
@@ -101,10 +106,13 @@ def install():
     else:
         changes = set(recorded or ())
         if recorded is None and was_installed:
-            # Upgrading from a version that kept no record. Its uninstall
-            # always gave Super+V back, so keep doing that. Whether it added
-            # Super+M is unknown, so leave Super+M alone.
+            # Upgrading from a version that kept no record (or the record was
+            # deleted). That version's uninstall always gave Super+V back, so
+            # keep doing that. Whether it added Super+M is unknown, so leave
+            # Super+M alone.
             changes.add("removed <Super>v")
+            print("Note: no record of the previous install's shortcut changes was found; "
+                  "uninstall will give Super+V back to the notification list.")
         if removed_super_v:
             changes.add("removed <Super>v")
         if added_super_m:
@@ -114,8 +122,8 @@ def install():
             with open(TRAY_MARKER, "w") as f:
                 f.write("".join(f"{c}\n" for c in sorted(changes)))
         except OSError as e:
-            print(f"Warning: cannot write {TRAY_MARKER}: {e}; uninstall will only restore Super+V.",
-                  file=sys.stderr)
+            print(f"Warning: cannot write {TRAY_MARKER}: {e}; uninstall may not undo this "
+                  "install's changes to the notification-list shortcut.", file=sys.stderr)
 
     print("Shortcuts installed: Super+V opens the history, Ctrl+Alt+1..9 paste item 1..9.")
     print("The notification list is now on: " + (", ".join(tray) or "no shortcut"))
