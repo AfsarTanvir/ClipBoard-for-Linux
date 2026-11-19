@@ -41,7 +41,15 @@ void migrateOldSettings()
     if (QFile::exists(newPath)) {
         // The new file was never read, the old one was in effect: copy the
         // old values over it so nothing the user relied on changes, then set
-        // the old file aside.
+        // the old file aside. QSettings drops comments when it rewrites the
+        // file, so keep the user's version as .bak first.
+        const QString newBackup = newPath + QStringLiteral(".bak");
+        QFile::remove(newBackup);
+        if (!QFile::copy(newPath, newBackup)) {
+            qWarning("Settings: cannot back up %s, not merging old settings %s",
+                     qPrintable(newPath), qPrintable(oldPath));
+            return;
+        }
         {
             const QSettings oldSettings(oldPath, QSettings::IniFormat);
             QSettings settings;
@@ -50,31 +58,33 @@ void migrateOldSettings()
                 settings.setValue(key, oldSettings.value(key));
             settings.sync();
             if (settings.status() != QSettings::NoError) {
-                qWarning("clipboard-linux: cannot merge old settings %s into %s",
+                qWarning("Settings: cannot merge old settings %s into %s",
                          qPrintable(oldPath), qPrintable(newPath));
                 return;
             }
         }
-        const QString backup = oldPath + QStringLiteral(".old");
-        if (!QFile::rename(oldPath, backup)
-            && !(QFile::remove(backup) && QFile::rename(oldPath, backup))) {
-            qWarning("clipboard-linux: merged old settings %s but cannot rename it to %s",
-                     qPrintable(oldPath), qPrintable(backup));
+        // The old file must not be merged again on the next start, or it
+        // would undo the user's later edits: rename it, or else delete it.
+        const QString oldBackup = oldPath + QStringLiteral(".old");
+        QFile::remove(oldBackup);
+        if (!QFile::rename(oldPath, oldBackup) && !QFile::remove(oldPath)) {
+            qWarning("Settings: merged %s but cannot rename or delete it; it will be merged "
+                     "again next time", qPrintable(oldPath));
             return;
         }
-        qInfo("clipboard-linux: merged old settings %s into %s (old file renamed to .old)",
-              qPrintable(oldPath), qPrintable(newPath));
+        qInfo("Settings: merged old settings %s into %s (previous file kept as %s)",
+              qPrintable(oldPath), qPrintable(newPath), qPrintable(newBackup));
         return;
     }
 
     QDir().mkpath(QFileInfo(newPath).absolutePath());
     if (!QFile::rename(oldPath, newPath)) {
-        qWarning("clipboard-linux: cannot move old settings from %s to %s", qPrintable(oldPath),
+        qWarning("Settings: cannot move old settings from %s to %s", qPrintable(oldPath),
                  qPrintable(newPath));
         return;
     }
     QDir().rmdir(oldDir); // only succeeds if nothing else is in it
-    qInfo("clipboard-linux: moved settings from %s to %s", qPrintable(oldPath), qPrintable(newPath));
+    qInfo("Settings: moved settings from %s to %s", qPrintable(oldPath), qPrintable(newPath));
 }
 
 // Sends one command to the running daemon over D-Bus.
