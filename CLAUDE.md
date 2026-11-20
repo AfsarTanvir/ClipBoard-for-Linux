@@ -9,6 +9,9 @@ Windows **Win + V** popup. One binary is both the background service (daemon) an
 command-line client. It is written in C++20 with Qt 6 (Widgets, SQL, D-Bus), stores history
 in SQLite, and uses libxcb and the kernel's `/dev/uinput` to work around Wayland's limits.
 
+License: GPL-3.0-only ([LICENSE](LICENSE)), copyright Afsar Tanvir and contributors. Code added
+here must be compatible with it (no copying from projects under incompatible licenses).
+
 Target platform: Ubuntu 26.04, GNOME 50, Wayland. User-facing setup, usage and settings
 are in [README.md](README.md); this file covers how the code works and how to change it.
 

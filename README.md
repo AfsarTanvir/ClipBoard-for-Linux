@@ -147,3 +147,12 @@ packaging/build-deb.sh                   # only for the Ubuntu you're running (n
 ```
 
 Tech stack: C++20 · Qt 6 (Widgets, SQL, D-Bus) · SQLite · libxcb · Linux uinput
+
+## License
+
+Copyright (C) 2026 Afsar Tanvir and contributors.
+
+ClipBoard for Linux is free software, released under the
+[GNU General Public License v3.0](LICENSE) (GPL-3.0-only). You may use, study, change and share
+it. If you share or sell a changed or unchanged copy, you must keep this copyright notice and
+provide the full source code under the same license.
