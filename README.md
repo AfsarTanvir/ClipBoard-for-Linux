@@ -1,6 +1,15 @@
 # ClipBoard for Linux
 
-A clipboard history manager for Linux (GNOME on Wayland), modelled on the Windows **Win + V** clipboard.
+A clipboard history manager for Linux (GNOME on Wayland), inspired by the Windows **Win + V** clipboard.
+
+> **Beta:** it works, but has been tested on only a few machines so far.
+> Please report problems in [Issues](https://github.com/AfsarTanvir/ClipBoard-for-Linux/issues).
+
+<p align="center">
+  <img src="screenshots/popup.png" alt="The clipboard history popup, opened with Super + V" width="380">
+</p>
+
+Your history stays on your computer: the app has no network code and sends nothing anywhere.
 
 ## Features
 
